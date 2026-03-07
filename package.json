@@ -1,0 +1,19 @@
+{
+  "name": "creative-partner-os",
+  "version": "1.0.0",
+  "description": "Creative Partner Agency OS - Inngest Function Server",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "INNGEST_DEV=1 node src/index.js"
+  },
+  "dependencies": {
+    "inngest": "^3.27.0",
+    "express": "^4.18.2",
+    "@supabase/supabase-js": "^2.39.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
