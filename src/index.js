@@ -4,6 +4,7 @@ import { inngest } from './inngest-client.js';
 import { analyticsNightlyPull } from './functions/analytics-nightly-pull.js';
 import { adsNightlyPull } from './functions/ads-nightly-pull.js';
 import { basecampNightlySync } from './functions/basecamp-nightly-sync.js';
+import { basecampTokenRefresh } from './functions/credentials/basecamp-token-refresh.js';
 import { promptAutoscorer } from './functions/prompt-autoscorer.js';
 import { helloWorldHealthCheck } from './functions/health/hello-world-health.js';
 
@@ -19,7 +20,8 @@ app.get('/health', (req, res) => {
     functions: [
       'analytics-nightly-pull', 
       'ads-nightly-pull', 
-      'basecamp-nightly-sync', 
+      'basecamp-nightly-sync',
+      'basecamp-token-refresh',
       'prompt-autoscorer',
       'hello-world-health-check'
     ]
@@ -35,6 +37,7 @@ app.use(
       analyticsNightlyPull,
       adsNightlyPull,
       basecampNightlySync,
+      basecampTokenRefresh,
       promptAutoscorer,
       helloWorldHealthCheck,
     ],
