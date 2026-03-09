@@ -5,6 +5,7 @@ import { analyticsNightlyPull } from './functions/analytics-nightly-pull.js';
 import { adsNightlyPull } from './functions/ads-nightly-pull.js';
 import { basecampNightlySync } from './functions/basecamp-nightly-sync.js';
 import { promptAutoscorer } from './functions/prompt-autoscorer.js';
+import { helloWorldHealthCheck } from './functions/health/hello-world-health.js';
 
 const app = express();
 app.use(express.json());
@@ -15,7 +16,13 @@ app.get('/health', (req, res) => {
     status: 'ok', 
     service: 'creative-partner-os',
     timestamp: new Date().toISOString(),
-    functions: ['analytics-nightly-pull', 'ads-nightly-pull', 'basecamp-nightly-sync', 'prompt-autoscorer']
+    functions: [
+      'analytics-nightly-pull', 
+      'ads-nightly-pull', 
+      'basecamp-nightly-sync', 
+      'prompt-autoscorer',
+      'hello-world-health-check'
+    ]
   });
 });
 
@@ -29,6 +36,7 @@ app.use(
       adsNightlyPull,
       basecampNightlySync,
       promptAutoscorer,
+      helloWorldHealthCheck,
     ],
   })
 );
