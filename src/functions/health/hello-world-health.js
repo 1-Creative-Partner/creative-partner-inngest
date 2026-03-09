@@ -1,15 +1,21 @@
 // Hello World validation function for P1-001
 // Verifies Inngest → Render → Supabase pipeline is fully operational
 
-const { inngest } = require('../inngest-client');
-const { supabase } = require('../supabase-client');
+import { inngest } from '../../inngest-client.js';
+import { supabase } from '../../supabase-client.js';
 
-module.exports = inngest.createFunction(
-  { id: "hello-world-health-check", name: "Hello World Health Check" },
+export const helloWorldHealthCheck = inngest.createFunction(
+  { 
+    id: "hello-world-health-check", 
+    name: "Hello World Health Check",
+    retries: 2
+  },
   { cron: "0 */6 * * *" }, // Every 6 hours
-  async ({ event, step }) => {
+  async ({ event, step, logger }) => {
     const result = await step.run("verify-pipeline", async () => {
       const timestamp = new Date().toISOString();
+      
+      logger.info('Running Inngest pipeline health check');
       
       // Test Supabase connectivity
       const { data, error } = await supabase
@@ -29,7 +35,12 @@ module.exports = inngest.createFunction(
         .select()
         .single();
 
-      if (error) throw new Error(`Supabase write failed: ${error.message}`);
+      if (error) {
+        logger.error('Supabase write failed:', error);
+        throw new Error(`Supabase write failed: ${error.message}`);
+      }
+      
+      logger.info('Health check completed successfully');
       
       return {
         status: 'healthy',
