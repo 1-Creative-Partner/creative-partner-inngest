@@ -8,6 +8,7 @@ import { basecampTokenRefresh } from './functions/credentials/basecamp-token-ref
 import { metaTokenRefresh } from './functions/credentials/meta-token-refresh.js';
 import { promptAutoscorer } from './functions/prompt-autoscorer.js';
 import { helloWorldHealthCheck } from './functions/health/hello-world-health.js';
+import { sessionEnforcement } from './functions/session/session-enforcement.js';
 
 const app = express();
 app.use(express.json());
@@ -25,7 +26,8 @@ app.get('/health', (req, res) => {
       'basecamp-token-refresh',
       'meta-token-refresh',
       'prompt-autoscorer',
-      'hello-world-health-check'
+      'hello-world-health-check',
+      'session-enforcement',
     ]
   });
 });
@@ -43,6 +45,7 @@ app.use(
       metaTokenRefresh,
       promptAutoscorer,
       helloWorldHealthCheck,
+      sessionEnforcement,
     ],
   })
 );
