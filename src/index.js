@@ -9,6 +9,8 @@ import { metaTokenRefresh } from './functions/credentials/meta-token-refresh.js'
 import { promptAutoscorer } from './functions/prompt-autoscorer.js';
 import { helloWorldHealthCheck } from './functions/health/hello-world-health.js';
 import { sessionEnforcement } from './functions/session/session-enforcement.js';
+import { competitorSignalWeekly } from './functions/monitoring/competitor-signal-weekly.js';
+import { kgEnrichmentSunday } from './functions/monitoring/kg-enrichment-sunday.js';
 
 const app = express();
 app.use(express.json());
@@ -28,6 +30,8 @@ app.get('/health', (req, res) => {
       'prompt-autoscorer',
       'hello-world-health-check',
       'session-enforcement',
+      'competitor-signal-weekly',
+      'kg-enrichment-sunday',
     ]
   });
 });
@@ -46,6 +50,8 @@ app.use(
       promptAutoscorer,
       helloWorldHealthCheck,
       sessionEnforcement,
+      competitorSignalWeekly,
+      kgEnrichmentSunday,
     ],
   })
 );
