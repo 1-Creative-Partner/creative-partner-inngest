@@ -1,6 +1,6 @@
 name = "crm-bridge"
 main = "src/workers/crm-bridge/index.js"
-account_id = "590d4bb6b7de31ad99707074e950"
+account_id = "590d4bb6b7de31ad99707074e950a97b"
 compatibility_date = "2026-03-09"
 
 [vars]
