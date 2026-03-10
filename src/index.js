@@ -6,6 +6,7 @@ import { adsNightlyPull } from './functions/ads-nightly-pull.js';
 import { basecampNightlySync } from './functions/basecamp-nightly-sync.js';
 import { basecampTokenRefresh } from './functions/credentials/basecamp-token-refresh.js';
 import { metaTokenRefresh } from './functions/credentials/meta-token-refresh.js';
+import { ghlOauthRefresh } from './functions/credentials/ghl-oauth-refresh.js';
 import { promptAutoscorer } from './functions/prompt-autoscorer.js';
 import { helloWorldHealthCheck } from './functions/health/hello-world-health.js';
 import { sessionEnforcement } from './functions/session/session-enforcement.js';
@@ -29,6 +30,7 @@ app.get('/health', (req, res) => {
       'meta-token-refresh',
       'prompt-autoscorer',
       'hello-world-health-check',
+      'ghl-oauth-refresh',
       'session-enforcement',
       'competitor-signal-weekly',
       'kg-enrichment-sunday',
@@ -47,6 +49,7 @@ app.use(
       basecampNightlySync,
       basecampTokenRefresh,
       metaTokenRefresh,
+      ghlOauthRefresh,
       promptAutoscorer,
       helloWorldHealthCheck,
       sessionEnforcement,
