@@ -1,0 +1,35 @@
+name: Deploy CRM Bridge Worker
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/workers/crm-bridge/**'
+      - 'wrangler.toml'
+      - '.github/workflows/deploy-crm-bridge.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy to Cloudflare Workers
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy CRM Bridge
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          secrets: |
+            GHL_AGENCY_PIT
+            GHL_CP_PIT
+            GHL_BAILEY_PIT
+            GHL_JUMPSTART_PIT
+            SUPABASE_SERVICE_KEY
+        env:
+          GHL_AGENCY_PIT: ${{ secrets.GHL_AGENCY_PIT }}
+          GHL_CP_PIT: ${{ secrets.GHL_CP_PIT }}
+          GHL_BAILEY_PIT: ${{ secrets.GHL_BAILEY_PIT }}
+          GHL_JUMPSTART_PIT: ${{ secrets.GHL_JUMPSTART_PIT }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
