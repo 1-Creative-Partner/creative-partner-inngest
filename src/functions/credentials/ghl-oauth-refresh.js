@@ -33,7 +33,10 @@ export const ghlOauthRefresh = inngest.createFunction(
     // where two concurrent refreshes both use the same refresh_token and one invalidates the other.
     concurrency: { limit: 1 },
   },
-  { cron: 'TZ=America/New_York 0 */20 * * *' }, // Every 20 hours — stays well within 24h expiry
+  [
+    { cron: 'TZ=America/New_York 0 */20 * * *' }, // Every 20 hours — stays well within 24h expiry
+    { event: 'cp/ghl.token.refresh.requested' },  // Manual trigger for immediate refresh
+  ],
   async ({ step, logger }) => {
 
     // ─── Step 1: Load GHL OAuth app credentials ──────────────────────────────
