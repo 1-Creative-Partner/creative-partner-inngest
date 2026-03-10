@@ -253,19 +253,6 @@ const TOOLS = [
       required: ['contactId', 'workflowId']
     }
   },
-  {
-    name: 'remove_contact_from_workflow',
-    description: 'Remove a GHL contact from a workflow',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        contactId: { type: 'string' },
-        workflowId: { type: 'string' },
-        location: { type: 'string', default: 'cp' }
-      },
-      required: ['contactId', 'workflowId']
-    }
-  },
 
   // GHL Calendar (2)
   {
@@ -595,9 +582,6 @@ async function callTool(name, args, env) {
       return ghlFetch('POST', `/contacts/${args.contactId}/workflow/${args.workflowId}`, env, loc, {
         eventStartTime: new Date().toISOString()
       });
-
-    case 'remove_contact_from_workflow':
-      return ghlFetch('DELETE', `/contacts/${args.contactId}/workflow/${args.workflowId}`, env, loc);
 
     // ── GHL Calendar ──
     case 'get_calendars': {
