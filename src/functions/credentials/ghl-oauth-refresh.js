@@ -132,14 +132,14 @@ export const ghlOauthRefresh = inngest.createFunction(
           );
         }
 
-        // Log to monitoring_events
-        await supabase.from('monitoring_events').insert({
-          event_type: 'token_refresh',
+        // Log to monitoring_events (non-fatal if fails)
+        const { error: monitorError } = await supabase.from('monitoring_events').insert({
+          event_type: 'ghl_token_refresh',
           severity: 'info',
-          source: 'inngest:ghl-oauth-refresh',
+          source: 'inngest_ghl_oauth_refresh',
           location_id: account.location_id,
           location_name: account.location_name,
-          message: `GHL OAuth token refreshed successfully for ${account.location_name}`,
+          message: `GHL OAuth token refreshed successfully for ${account.location_name || account.location_id}`,
           details: {
             location_id: account.location_id,
             previous_expiry: account.token_expires_at,
@@ -148,6 +148,7 @@ export const ghlOauthRefresh = inngest.createFunction(
           },
           resolved: true,
         });
+        if (monitorError) logger.warn(`monitoring_events insert failed (non-fatal): ${monitorError.message}`);
 
         logger.info(`Token refreshed and saved for ${account.location_name}. New expiry: ${expiresAt}`);
         return {
@@ -196,7 +197,7 @@ export const ghlOauthRefresh = inngest.createFunction(
 
       const { error } = await supabase.from('cia_episode').insert({
         episode_type: 'measurement',
-        source_system: 'inngest',
+        source_system: 'claude',
         actor: 'GHL OAuth Refresh',
         content: `GHL OAuth token refresh complete. ${successCount}/${results.length} accounts refreshed successfully.${failCount > 0 ? ` ${failCount} failures — check #system-alerts.` : ' All tokens current.'}`,
         metadata: {
