@@ -40,6 +40,7 @@ import {
 } from './functions/clickup-webhook-processor.js';
 import { bugherdWebhookReceiver, bugherdCommentReceiver } from './functions/bugherd-webhook.js';
 import { googleDocsCommentPoller, checkSingleDocComments } from './functions/google-docs-comment-poller.js';
+import { ghlWebhookBuffer } from './functions/ghl-webhook-buffer.js';
 
 const app = express();
 app.use(express.json());
@@ -69,6 +70,7 @@ app.use(
       clickupTaskUpdated, clickupTaskAssigneeUpdated, clickupTaskDeleted,
       bugherdWebhookReceiver, bugherdCommentReceiver,
       googleDocsCommentPoller, checkSingleDocComments,
+      ghlWebhookBuffer,
     ],
   })
 );
