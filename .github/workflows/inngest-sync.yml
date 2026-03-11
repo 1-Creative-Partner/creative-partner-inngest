@@ -1,0 +1,36 @@
+name: Sync Inngest Functions
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for Render deploy
+        run: sleep 90
+
+      - name: Trigger Inngest sync
+        run: |
+          echo "Sending PUT to Inngest serve endpoint..."
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -X PUT \
+            "https://creative-partner-inngest.onrender.com/api/inngest" \
+            --max-time 30)
+          echo "Response code: $RESPONSE"
+          if [ "$RESPONSE" -ge 200 ] && [ "$RESPONSE" -lt 400 ]; then
+            echo "Inngest sync triggered successfully"
+          else
+            echo "Inngest sync failed, retrying in 30s..."
+            sleep 30
+            RESPONSE2=$(curl -s -o /dev/null -w "%{http_code}" -X PUT \
+              "https://creative-partner-inngest.onrender.com/api/inngest" \
+              --max-time 30)
+            echo "Retry response: $RESPONSE2"
+            if [ "$RESPONSE2" -ge 200 ] && [ "$RESPONSE2" -lt 400 ]; then
+              echo "Inngest sync succeeded on retry"
+            else
+              echo "::warning::Inngest sync failed after retry"
+              exit 1
+            fi
+          fi
