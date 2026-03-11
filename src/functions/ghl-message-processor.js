@@ -11,7 +11,7 @@ const ghlInboundMessageProcessor = inngest.createFunction(
     id: "ghl-inbound-message-processor",
     name: "GHL Intelligence: Inbound Message Buffer",
     retries: 2,
-    concurrency: { limit: 10 }
+    concurrency: { limit: 5 }
   },
   { event: "ghl/message.inbound" },
   async ({ event, step }) => {
