@@ -41,6 +41,7 @@ import {
 import { bugherdWebhookReceiver, bugherdCommentReceiver } from './functions/bugherd-webhook.js';
 import { googleDocsCommentPoller, checkSingleDocComments } from './functions/google-docs-comment-poller.js';
 import { ghlWebhookBuffer } from './functions/ghl-webhook-buffer.js';
+import { llmLandscapeMonitor } from './functions/monitoring/llm-landscape-monitor.js';
 
 const app = express();
 app.use(express.json());
@@ -71,6 +72,7 @@ app.use(
       bugherdWebhookReceiver, bugherdCommentReceiver,
       googleDocsCommentPoller, checkSingleDocComments,
       ghlWebhookBuffer,
+      llmLandscapeMonitor,
     ],
   })
 );
