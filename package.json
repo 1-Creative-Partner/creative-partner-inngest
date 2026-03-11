@@ -5,8 +5,8 @@
   "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "start": "node --import tsx/esm src/index.js",
-    "dev": "INNGEST_DEV=1 node --import tsx/esm src/index.js"
+    "start": "node_modules/.bin/tsx src/index.js",
+    "dev": "INNGEST_DEV=1 node_modules/.bin/tsx src/index.js"
   },
   "dependencies": {
     "inngest": "^3.27.0",
