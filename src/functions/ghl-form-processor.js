@@ -11,7 +11,7 @@ const ghlFormProcessor = inngest.createFunction(
     id: "ghl-form-processor",
     name: "GHL Intelligence: Form Submission Processor",
     retries: 2,
-    concurrency: { limit: 10 }
+    concurrency: { limit: 5 }
   },
   { event: "ghl/form.submitted" },
   async ({ event, step }) => {
