@@ -75,7 +75,7 @@ const ghlWebhookRouter = inngest.createFunction(
     id: "ghl-webhook-router",
     name: "GHL Webhook Router: cp/ghl.webhook.received \u2192 specific events",
     retries: 2,
-    concurrency: { limit: 20 }
+    concurrency: { limit: 5 }
   },
   { event: "cp/ghl.webhook.received" },
   async ({ event, step }) => {
