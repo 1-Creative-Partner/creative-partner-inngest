@@ -1,6 +1,8 @@
 import express from 'express';
 import { serve } from 'inngest/express';
 import { inngest } from './inngest-client.js';
+
+// ── EXISTING FUNCTIONS (.js) ───────────────────────────────────────────────
 import { analyticsNightlyPull } from './functions/analytics-nightly-pull.js';
 import { adsNightlyPull } from './functions/ads-nightly-pull.js';
 import { basecampNightlySync } from './functions/basecamp-nightly-sync.js';
@@ -13,48 +15,72 @@ import { sessionEnforcement } from './functions/session/session-enforcement.js';
 import { competitorSignalWeekly } from './functions/monitoring/competitor-signal-weekly.js';
 import { kgEnrichmentSunday } from './functions/monitoring/kg-enrichment-sunday.js';
 
+// ── NEW FUNCTIONS (.ts) ────────────────────────────────────────────────────
+// GHL Webhook Pipeline
+import { ghlWebhookRouter } from './functions/ghl-webhook-router.ts';
+import { ghlTranscriptProcessor } from './functions/ghl-transcript-processor.ts';
+import { ghlInboundMessageProcessor, ghlCommunicationExtraction } from './functions/ghl-message-processor.ts';
+import { ghlFormProcessor } from './functions/ghl-form-processor.ts';
+import {
+  ghlContactCreated, ghlOpportunityCreated, ghlOpportunityStageUpdated,
+  ghlMessageInbound, ghlContactTagsUpdated, ghlAppointmentCreated
+} from './functions/ghl-webhook-processor.ts';
+
+// AI Agents
+import { transcriptIntelligenceAgent } from './functions/transcript-intelligence-agent.ts';
+import { metaAgentOptimizer } from './functions/meta-agent-optimizer.ts';
+import { morningBriefingAgent } from './functions/morning-briefing-agent.ts';
+import dailyHealthMonitor from './functions/daily-health-monitor.ts';
+
+// Client Lifecycle
+import { clientOnboardingAutomation } from './functions/client-onboarding.ts';
+import { proposalNotify } from './functions/proposal-notify.ts';
+
+// Webhook Processors
+import {
+  basecampTodoCreated, basecampTodoCompleted, basecampCommentCreated,
+  basecampMessageCreated, basecampTodoUncompleted, basecampDocumentCreated
+} from './functions/basecamp-webhook-processor.ts';
+import {
+  clickupTaskCreated, clickupTaskStatusUpdated, clickupTaskCommentPosted,
+  clickupTaskUpdated, clickupTaskAssigneeUpdated, clickupTaskDeleted
+} from './functions/clickup-webhook-processor.ts';
+import { bugherdWebhookReceiver, bugherdCommentReceiver } from './functions/bugherd-webhook.ts';
+import { googleDocsCommentPoller, checkSingleDocComments } from './functions/google-docs-comment-poller.ts';
+
 const app = express();
 app.use(express.json());
 
-// Health check - Render uses this to confirm service is alive
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
-    service: 'creative-partner-os',
-    timestamp: new Date().toISOString(),
-    functions: [
-      'analytics-nightly-pull', 
-      'ads-nightly-pull', 
-      'basecamp-nightly-sync',
-      'basecamp-token-refresh',
-      'meta-token-refresh',
-      'prompt-autoscorer',
-      'hello-world-health-check',
-      'ghl-oauth-refresh',
-      'session-enforcement',
-      'competitor-signal-weekly',
-      'kg-enrichment-sunday',
-    ]
-  });
+  res.json({ status: 'ok', service: 'creative-partner-os', timestamp: new Date().toISOString() });
 });
 
-// Inngest serve endpoint - this is what Inngest calls to execute functions
 app.use(
   '/api/inngest',
   serve({
     client: inngest,
     functions: [
-      analyticsNightlyPull,
-      adsNightlyPull,
-      basecampNightlySync,
-      basecampTokenRefresh,
-      metaTokenRefresh,
-      ghlOauthRefresh,
-      promptAutoscorer,
-      helloWorldHealthCheck,
-      sessionEnforcement,
-      competitorSignalWeekly,
-      kgEnrichmentSunday,
+      // Existing
+      analyticsNightlyPull, adsNightlyPull, basecampNightlySync,
+      basecampTokenRefresh, metaTokenRefresh, ghlOauthRefresh,
+      promptAutoscorer, helloWorldHealthCheck, sessionEnforcement,
+      competitorSignalWeekly, kgEnrichmentSunday,
+      // GHL Pipeline
+      ghlWebhookRouter, ghlTranscriptProcessor, ghlInboundMessageProcessor,
+      ghlCommunicationExtraction, ghlFormProcessor, ghlContactCreated,
+      ghlOpportunityCreated, ghlOpportunityStageUpdated, ghlMessageInbound,
+      ghlContactTagsUpdated, ghlAppointmentCreated,
+      // AI Agents
+      transcriptIntelligenceAgent, metaAgentOptimizer, morningBriefingAgent, dailyHealthMonitor,
+      // Client Lifecycle
+      clientOnboardingAutomation, proposalNotify,
+      // Webhook Processors
+      basecampTodoCreated, basecampTodoCompleted, basecampCommentCreated,
+      basecampMessageCreated, basecampTodoUncompleted, basecampDocumentCreated,
+      clickupTaskCreated, clickupTaskStatusUpdated, clickupTaskCommentPosted,
+      clickupTaskUpdated, clickupTaskAssigneeUpdated, clickupTaskDeleted,
+      bugherdWebhookReceiver, bugherdCommentReceiver,
+      googleDocsCommentPoller, checkSingleDocComments,
     ],
   })
 );
@@ -62,6 +88,4 @@ app.use(
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Creative Partner OS running on port ${PORT}`);
-  console.log(`Inngest endpoint: http://localhost:${PORT}/api/inngest`);
-  console.log(`Health check: http://localhost:${PORT}/health`);
 });
