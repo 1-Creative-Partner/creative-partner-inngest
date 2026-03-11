@@ -4,7 +4,7 @@ const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
-const SLACK_WEBHOOK_PROPOSALS = process.env.SLACK_WEBHOOK_PROPOSALS || "https://hooks.slack.com/services/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";
+const SLACK_WEBHOOK_PROPOSALS = process.env.SLACK_WEBHOOK_PROPOSALS;
 const PORTAL_BASE_URL = "https://portal.creativepartnersolutions.com";
 const proposalNotify = inngest.createFunction(
   {
