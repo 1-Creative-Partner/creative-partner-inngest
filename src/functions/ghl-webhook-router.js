@@ -11,6 +11,7 @@ const GHL_TYPE_MAP = {
   "CallTranscript": "ghl/transcript.processed",
   "call_transcript": "ghl/transcript.processed",
   // Phase 0.5 — Inbound Message Intelligence
+  "InboundMessageProcessed": "ghl/message.inbound",
   "InboundMessage": "ghl/message.inbound",
   "CustomerReplied": "ghl/message.inbound",
   "MessageAdded": "ghl/message.inbound",

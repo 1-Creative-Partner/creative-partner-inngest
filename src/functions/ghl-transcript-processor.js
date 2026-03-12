@@ -99,13 +99,14 @@ const ghlTranscriptProcessor = inngest.createFunction(
     });
     const intakeRecord = await step.run("write-communication-intake", async () => {
       const { data, error } = await supabase.from("communication_intake").insert({
+        source_channel: "call",
+        source_system: "ghl",
         customer_id: customer.id,
-        ghl_contact_id: contactId,
-        location_id: locationId,
-        communication_type: "call_transcript",
+        contact_identifier: contactId,
+        contact_name: intelligence.client_name || customer.company_name || "Unknown",
         direction: call_direction || "unknown",
-        content: call_transcript || "[transcript not available]",
-        metadata: {
+        raw_content: call_transcript || "[transcript not available]",
+        key_entities: {
           call_duration,
           call_type,
           phone_number,

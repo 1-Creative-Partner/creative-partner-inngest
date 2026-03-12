@@ -32,13 +32,13 @@ const ghlInboundMessageProcessor = inngest.createFunction(
       if (!body || body.trim().length === 0)
         return { skipped: true, reason: "Empty message body" };
       const { error } = await supabase.from("communication_intake").insert({
+        source_channel: messageType || "sms",
+        source_system: "ghl",
         customer_id: customerId,
-        ghl_contact_id: contactId,
-        location_id: locationId,
-        communication_type: messageType || "sms",
+        contact_identifier: contactId,
         direction: direction || "inbound",
-        content: body,
-        metadata: {
+        raw_content: body,
+        key_entities: {
           conversation_id: conversationId,
           date_added: dateAdded,
           source: "ghl-webhook"
