@@ -142,8 +142,8 @@ export async function routeModel({ task, prompt, system, model, caller = 'unknow
           output_tokens: usage.completion_tokens || null,
         };
 
-        // Log to model_routing_log (non-blocking)
-        logRouting({
+        // Log to model_routing_log (awaited — fire-and-forget breaks inside Inngest step.run)
+        await logRouting({
           function_name: caller,
           task_type: task || 'explicit-model',
           model_requested: model || null,
@@ -202,7 +202,7 @@ export async function routeModel({ task, prompt, system, model, caller = 'unknow
       output_tokens: usage.output_tokens || null,
     };
 
-    logRouting({
+    await logRouting({
       function_name: caller,
       task_type: task || 'explicit-model',
       model_requested: model || null,
