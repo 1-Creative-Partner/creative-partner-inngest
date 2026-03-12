@@ -30,9 +30,16 @@ const ghlContactCreated = inngest.createFunction(
     });
     if (locationId === CP_LOCATION_ID) {
       await step.run("sync-to-customer", async () => {
+        const companyName = [firstName, lastName].filter(Boolean).join(" ") || email || "Unknown";
+        const slug = companyName
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, "")
+          .substring(0, 50);
         const { error } = await supabase.from("customer").upsert({
           ghl_contact_id: contactId,
-          company_name: [firstName, lastName].filter(Boolean).join(" ") || email || "Unknown",
+          company_name: companyName,
+          slug,
           email,
           phone,
           tenant_id: "creative-partner",
@@ -109,39 +116,8 @@ const ghlOpportunityStageUpdated = inngest.createFunction(
     return { success: true, opportunityId, newStage: pipelineStageId };
   }
 );
-const ghlMessageInbound = inngest.createFunction(
-  { id: "ghl-message-inbound", name: "GHL: Inbound Message Received" },
-  { event: "ghl/message.inbound" },
-  async ({ event, step }) => {
-    const {
-      conversationId,
-      contactId,
-      type: messageType,
-      body,
-      locationId,
-      direction
-    } = event.data;
-    await step.run("log-cia-episode", async () => {
-      const preview = body ? body.substring(0, 150) + (body.length > 150 ? "..." : "") : "[no body]";
-      await supabase.from("cia_episode").insert({
-        episode_type: "observation",
-        source_system: "ghl",
-        actor: "client",
-        content: `Inbound ${messageType || "message"} received. Contact: ${contactId}. Preview: "${preview}"`,
-        metadata: {
-          conversation_id: conversationId,
-          contact_id: contactId,
-          message_type: messageType,
-          direction,
-          location_id: locationId,
-          event: "ghl/message.inbound"
-        },
-        timestamp_event: (/* @__PURE__ */ new Date()).toISOString()
-      });
-    });
-    return { success: true, conversationId, event: "ghl/message.inbound" };
-  }
-);
+// ghl-message-inbound removed — duplicate of ghl-inbound-message-processor in ghl-message-processor.js
+// ghl-inbound-message-processor handles buffering + CIA logging for ghl/message.inbound
 const ghlContactTagsUpdated = inngest.createFunction(
   { id: "ghl-contact-tags-updated", name: "GHL: Contact Tags Updated" },
   { event: "ghl/contact.tags.updated" },
@@ -205,7 +181,6 @@ export {
   ghlAppointmentCreated,
   ghlContactCreated,
   ghlContactTagsUpdated,
-  ghlMessageInbound,
   ghlOpportunityCreated,
   ghlOpportunityStageUpdated
 };

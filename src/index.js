@@ -22,7 +22,7 @@ import { ghlInboundMessageProcessor, ghlCommunicationExtraction } from './functi
 import { ghlFormProcessor } from './functions/ghl-form-processor.js';
 import {
   ghlContactCreated, ghlOpportunityCreated, ghlOpportunityStageUpdated,
-  ghlMessageInbound, ghlContactTagsUpdated, ghlAppointmentCreated
+  ghlContactTagsUpdated, ghlAppointmentCreated
 } from './functions/ghl-webhook-processor.js';
 import { transcriptIntelligenceAgent } from './functions/transcript-intelligence-agent.js';
 import { metaAgentOptimizer } from './functions/meta-agent-optimizer.js';
@@ -68,7 +68,7 @@ app.use(
       competitorSignalWeekly, kgEnrichmentSunday,
       ghlWebhookRouter, ghlTranscriptProcessor, ghlInboundMessageProcessor,
       ghlCommunicationExtraction, ghlFormProcessor, ghlContactCreated,
-      ghlOpportunityCreated, ghlOpportunityStageUpdated, ghlMessageInbound,
+      ghlOpportunityCreated, ghlOpportunityStageUpdated,
       ghlContactTagsUpdated, ghlAppointmentCreated,
       transcriptIntelligenceAgent, metaAgentOptimizer, morningBriefingAgent, dailyHealthMonitor,
       clientOnboardingAutomation, proposalNotify,
