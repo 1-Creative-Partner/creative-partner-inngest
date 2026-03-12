@@ -45,6 +45,11 @@ import { llmLandscapeMonitor } from './functions/monitoring/llm-landscape-monito
 import { matrixOptimizer } from './functions/monitoring/matrix-optimizer.js';
 import { routingQualityScorer } from './functions/monitoring/routing-quality-scorer.js';
 
+// ── PHASE 1: Pipeline Functions ──────────────────────────────────────────────
+import { modelRouterTest } from './functions/health/model-router-test.js';
+import { dealDetector } from './functions/deal-detector.js';
+import { businessAnalyzer } from './functions/business-analyzer.js';
+
 const app = express();
 app.use(express.json());
 
@@ -77,6 +82,10 @@ app.use(
       llmLandscapeMonitor,
       matrixOptimizer,
       routingQualityScorer,
+      // Phase 1: Pipeline
+      modelRouterTest,
+      dealDetector,
+      businessAnalyzer,
     ],
   })
 );
