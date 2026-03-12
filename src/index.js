@@ -42,6 +42,8 @@ import { bugherdWebhookReceiver, bugherdCommentReceiver } from './functions/bugh
 import { googleDocsCommentPoller, checkSingleDocComments } from './functions/google-docs-comment-poller.js';
 import { ghlWebhookBuffer } from './functions/ghl-webhook-buffer.js';
 import { llmLandscapeMonitor } from './functions/monitoring/llm-landscape-monitor.js';
+import { matrixOptimizer } from './functions/monitoring/matrix-optimizer.js';
+import { routingQualityScorer } from './functions/monitoring/routing-quality-scorer.js';
 
 const app = express();
 app.use(express.json());
@@ -73,6 +75,8 @@ app.use(
       googleDocsCommentPoller, checkSingleDocComments,
       ghlWebhookBuffer,
       llmLandscapeMonitor,
+      matrixOptimizer,
+      routingQualityScorer,
     ],
   })
 );

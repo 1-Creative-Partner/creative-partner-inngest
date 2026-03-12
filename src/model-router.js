@@ -3,21 +3,18 @@ import { supabase } from './supabase-client.js';
 /**
  * Model Router — Routes LLM calls through OpenRouter using llm_model_matrix
  *
- * Looks up the cheapest qualified model for a task type from Supabase,
- * then calls it via OpenRouter's OpenAI-compatible API.
+ * Every call is logged to model_routing_log for quality optimization.
  *
  * Usage:
- *   const result = await routeModel({ task: "classification", prompt: "..." });
- *   const result = await routeModel({ task: "content writing", prompt: "...", model: "claude-sonnet-4-6" });
- *
- * Falls back to direct Anthropic API if OpenRouter key is missing.
+ *   const result = await routeModel({ task: "classification", prompt: "...", caller: "prompt-autoscorer" });
+ *   const result = await routeModel({ task: "content writing", prompt: "...", model: "claude-sonnet-4-6", caller: "content-writer" });
  */
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const OPENROUTER_BASE = 'https://openrouter.ai/api/v1/chat/completions';
 
-// Cache the model matrix for 1 hour (avoid DB hit every call)
+// Cache the model matrix for 1 hour
 let modelCache = null;
 let cacheExpiry = 0;
 
@@ -31,11 +28,11 @@ async function getModelMatrix() {
 
   if (error) {
     console.error('Failed to load model matrix:', error.message);
-    return modelCache || []; // return stale cache if available
+    return modelCache || [];
   }
 
   modelCache = data;
-  cacheExpiry = Date.now() + 60 * 60 * 1000; // 1 hour
+  cacheExpiry = Date.now() + 60 * 60 * 1000;
   return data;
 }
 
@@ -44,50 +41,58 @@ async function getModelMatrix() {
  */
 async function findBestModel(taskType) {
   const matrix = await getModelMatrix();
-
-  // Find models whose recommended_use_cases contain a matching term
   const taskLower = taskType.toLowerCase();
+
   const candidates = matrix.filter(m =>
-    m.openrouter_id && // must be routable via OpenRouter
+    m.openrouter_id &&
     m.recommended_use_cases?.some(uc => uc.toLowerCase().includes(taskLower))
   );
 
   if (candidates.length === 0) {
-    // Default fallback: cheapest model with an OpenRouter ID
     const cheapest = matrix
       .filter(m => m.openrouter_id)
       .sort((a, b) => Number(a.input_cost_per_mtok) - Number(b.input_cost_per_mtok));
     return cheapest[0] || null;
   }
 
-  // Sort by input cost ascending (cheapest first)
   candidates.sort((a, b) => Number(a.input_cost_per_mtok) - Number(b.input_cost_per_mtok));
   return candidates[0];
 }
 
 /**
- * Route a completion request to the best model via OpenRouter
+ * Log a routed call to model_routing_log (fire-and-forget, never blocks)
+ */
+async function logRouting(entry) {
+  try {
+    await supabase.from('model_routing_log').insert(entry);
+  } catch (err) {
+    console.warn('Failed to log routing:', err.message);
+  }
+}
+
+/**
+ * Route a completion request to the best model
  *
  * @param {Object} opts
- * @param {string} opts.task - Task type for auto-routing (e.g. "classification", "content writing")
+ * @param {string} opts.task - Task type for auto-routing
  * @param {string} opts.prompt - The user message
  * @param {string} [opts.system] - Optional system message
- * @param {string} [opts.model] - Force a specific model_id (skips auto-routing)
+ * @param {string} [opts.model] - Force a specific model_id
+ * @param {string} [opts.caller] - Which function is calling (for audit trail)
  * @param {number} [opts.maxTokens=256] - Max output tokens
- * @returns {Promise<{text: string, model: string, provider: string, cost_tier: string}>}
+ * @returns {Promise<{text: string, model: string, provider: string, cost_tier: string, route: string}>}
  */
-export async function routeModel({ task, prompt, system, model, maxTokens = 256 }) {
+export async function routeModel({ task, prompt, system, model, caller = 'unknown', maxTokens = 256 }) {
+  const startTime = Date.now();
   let targetModel;
   let openrouterId;
 
   if (model) {
-    // Explicit model override — look up its OpenRouter ID
     const matrix = await getModelMatrix();
     const found = matrix.find(m => m.model_id === model);
-    targetModel = found || { model_id: model, openrouter_id: model, model_tier: 'unknown' };
+    targetModel = found || { model_id: model, openrouter_id: model, model_tier: 'unknown', provider: 'unknown' };
     openrouterId = found?.openrouter_id || model;
   } else if (task) {
-    // Auto-route based on task type
     targetModel = await findBestModel(task);
     if (!targetModel) {
       throw new Error(`No model found for task "${task}" and no fallback available`);
@@ -97,7 +102,6 @@ export async function routeModel({ task, prompt, system, model, maxTokens = 256 
     throw new Error('Must provide either task or model');
   }
 
-  // Build messages array
   const messages = [];
   if (system) messages.push({ role: 'system', content: system });
   messages.push({ role: 'user', content: prompt });
@@ -123,14 +127,39 @@ export async function routeModel({ task, prompt, system, model, maxTokens = 256 
       if (res.ok) {
         const data = await res.json();
         const text = data.choices?.[0]?.message?.content || '';
-        return {
+        const usage = data.usage || {};
+        const latencyMs = Date.now() - startTime;
+
+        const result = {
           text,
           model: targetModel.model_id,
           openrouter_model: openrouterId,
           provider: targetModel.provider || 'openrouter',
           cost_tier: targetModel.model_tier || 'unknown',
           route: 'openrouter',
+          latency_ms: latencyMs,
+          input_tokens: usage.prompt_tokens || null,
+          output_tokens: usage.completion_tokens || null,
         };
+
+        // Log to model_routing_log (non-blocking)
+        logRouting({
+          function_name: caller,
+          task_type: task || 'explicit-model',
+          model_requested: model || null,
+          model_used: targetModel.model_id,
+          openrouter_model: openrouterId,
+          provider: targetModel.provider || 'openrouter',
+          cost_tier: targetModel.model_tier || 'unknown',
+          route: 'openrouter',
+          input_tokens: usage.prompt_tokens || null,
+          output_tokens: usage.completion_tokens || null,
+          latency_ms: latencyMs,
+          prompt_preview: prompt.substring(0, 200),
+          output_preview: text.substring(0, 200),
+        });
+
+        return result;
       }
 
       console.warn(`OpenRouter ${res.status} for ${openrouterId}, falling back...`);
@@ -139,7 +168,7 @@ export async function routeModel({ task, prompt, system, model, maxTokens = 256 
     }
   }
 
-  // Fallback: direct Anthropic API (only works for Anthropic models)
+  // Fallback: direct Anthropic API
   if (ANTHROPIC_API_KEY && (targetModel.provider === 'anthropic' || !openrouterId)) {
     const anthropicModel = targetModel.model_id || 'claude-haiku-4-5-20251001';
     const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -158,13 +187,38 @@ export async function routeModel({ task, prompt, system, model, maxTokens = 256 
 
     if (!res.ok) throw new Error(`Anthropic API error: ${res.status}`);
     const data = await res.json();
-    return {
-      text: data.content?.[0]?.text || '',
+    const text = data.content?.[0]?.text || '';
+    const usage = data.usage || {};
+    const latencyMs = Date.now() - startTime;
+
+    const result = {
+      text,
       model: anthropicModel,
       provider: 'anthropic',
       cost_tier: targetModel.model_tier || 'micro',
       route: 'direct-anthropic',
+      latency_ms: latencyMs,
+      input_tokens: usage.input_tokens || null,
+      output_tokens: usage.output_tokens || null,
     };
+
+    logRouting({
+      function_name: caller,
+      task_type: task || 'explicit-model',
+      model_requested: model || null,
+      model_used: anthropicModel,
+      openrouter_model: null,
+      provider: 'anthropic',
+      cost_tier: targetModel.model_tier || 'micro',
+      route: 'direct-anthropic',
+      input_tokens: usage.input_tokens || null,
+      output_tokens: usage.output_tokens || null,
+      latency_ms: latencyMs,
+      prompt_preview: prompt.substring(0, 200),
+      output_preview: text.substring(0, 200),
+    });
+
+    return result;
   }
 
   throw new Error('No API key available (need OPENROUTER_API_KEY or ANTHROPIC_API_KEY)');
