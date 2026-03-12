@@ -1,15 +1,15 @@
 import { inngest } from '../inngest-client.js';
 import { supabase } from '../supabase-client.js';
+import { routeModel } from '../model-router.js';
 
 export const promptAutoscorer = inngest.createFunction(
   {
     id: 'prompt-autoscorer',
     name: 'Prompt Autoscorer',
     retries: 2,
-    // Prevent hammering Anthropic API - max 1 concurrent run
     concurrency: { limit: 1 },
   },
-  { cron: '0 */6 * * *' }, // Every 6 hours - same as n8n
+  { cron: '0 */6 * * *' }, // Every 6 hours
   async ({ step, logger }) => {
 
     // Step 1: Get unscored prompts
@@ -18,7 +18,7 @@ export const promptAutoscorer = inngest.createFunction(
         .from('prompt_result_log')
         .select('id, task_type, user_prompt, output, iteration_number')
         .is('score', null)
-        .limit(10); // Process 10 at a time
+        .limit(10);
 
       if (error) throw new Error(`Failed to fetch unscored prompts: ${error.message}`);
       logger.info(`Found ${data.length} unscored prompts`);
@@ -29,54 +29,37 @@ export const promptAutoscorer = inngest.createFunction(
       return { message: 'No unscored prompts', processed: 0 };
     }
 
-    // Step 2: Score each prompt via Anthropic API
+    // Step 2: Score each prompt via model router (cheapest qualified model)
     const scored = [];
     for (const prompt of unscored) {
       const score = await step.run(`score-prompt-${prompt.id}`, async () => {
-        const apiKey = process.env.ANTHROPIC_API_KEY;
-        if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured');
-
-        const res = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-          },
-          body: JSON.stringify({
-            model: 'claude-haiku-4-5-20251001',
-            max_tokens: 100,
-            messages: [{
-              role: 'user',
-              content: `Rate this prompt output 1-5. Reply with just a number.
+        const result = await routeModel({
+          task: 'classification',  // Routes to cheapest: gemini-flash ($0.10) or gpt-4o-mini ($0.15)
+          prompt: `Rate this prompt output 1-5. Reply with just a number.
 Task: ${prompt.task_type}
 Prompt: ${prompt.user_prompt?.substring(0, 200)}
-Output: ${prompt.output?.substring(0, 200)}`
-            }]
-          })
+Output: ${prompt.output?.substring(0, 200)}`,
+          maxTokens: 10,
         });
 
-        if (!res.ok) throw new Error(`Anthropic API error: ${res.status}`);
-        const data = await res.json();
-        const scoreText = data.content[0]?.text?.trim();
-        const scoreNum = parseInt(scoreText);
-        
+        const scoreNum = parseInt(result.text?.trim());
+
         if (isNaN(scoreNum) || scoreNum < 1 || scoreNum > 5) {
-          throw new Error(`Invalid score returned: ${scoreText}`);
+          throw new Error(`Invalid score returned: ${result.text} (via ${result.model})`);
         }
 
         // Write score back to Supabase
         const { error } = await supabase
           .from('prompt_result_log')
-          .update({ 
+          .update({
             score: scoreNum,
             scored_at: new Date().toISOString(),
-            scorer: 'inngest-autoscorer',
+            scorer: `inngest-autoscorer/${result.model}`,
           })
           .eq('id', prompt.id);
 
         if (error) throw new Error(`Failed to save score: ${error.message}`);
-        return { id: prompt.id, score: scoreNum };
+        return { id: prompt.id, score: scoreNum, model: result.model, route: result.route };
       });
       scored.push(score);
     }
