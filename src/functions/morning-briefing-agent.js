@@ -225,6 +225,22 @@ ${unresolvedAlerts.map(
         timestamp_event: (/* @__PURE__ */ new Date()).toISOString()
       });
     });
+    // Log briefing output for quality scoring
+    await step.run("log-prompt-result", async () => {
+      await supabase.from("prompt_result_log").insert({
+        tenant_id: "creative-partner",
+        task_type: "morning_briefing",
+        model_used: "claude-haiku-4-5-20251001",
+        prompt_version: 1,
+        system_prompt: "You are Chad Morgan's AI operations assistant at Creative Partner. Generate his concise daily briefing for Slack. Lead with what needs attention today.",
+        user_prompt: `${briefingData.newLeads.length} new leads, ${briefingData.highValueFacts.length} high-value signals, ${briefingData.unresolvedAlerts.length} unresolved alerts`,
+        output: summary,
+        output_type: "slack_briefing",
+        updated_at: new Date().toISOString(),
+      });
+      return { logged: true };
+    });
+
     return {
       success: true,
       newLeads: briefingData.newLeads.length,

@@ -400,6 +400,23 @@ Return a JSON object with these fields:
       return { fired: true };
     });
 
+    // Step 8b: Log output to prompt_result_log for quality tracking
+    await step.run('log-prompt-result', async () => {
+      await supabase.from('prompt_result_log').insert({
+        tenant_id: 'creative-partner',
+        task_type: 'business_analysis',
+        customer_id: customerId,
+        model_used: analysis.model_used || 'unknown',
+        prompt_version: 1,
+        system_prompt: 'You are a business analyst for a digital marketing agency. Return ONLY valid JSON, no markdown fences.',
+        user_prompt: `COMPANY: ${companyName} | WEBSITE: ${websiteUrl || 'Unknown'} | INDUSTRY: ${context.customer?.industry || 'Unknown'}`,
+        output: JSON.stringify(analysis.analysis).substring(0, 2000),
+        output_type: 'knowledge_graph',
+        updated_at: new Date().toISOString(),
+      });
+      return { logged: true };
+    });
+
     // Step 9: Log CIA episode
     await step.run('log-cia-episode', async () => {
       await supabase.from('cia_episode').insert({

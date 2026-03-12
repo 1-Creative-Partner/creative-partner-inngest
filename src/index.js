@@ -44,6 +44,7 @@ import { ghlWebhookBuffer } from './functions/ghl-webhook-buffer.js';
 import { llmLandscapeMonitor } from './functions/monitoring/llm-landscape-monitor.js';
 import { matrixOptimizer } from './functions/monitoring/matrix-optimizer.js';
 import { routingQualityScorer } from './functions/monitoring/routing-quality-scorer.js';
+import { promptOptimizer } from './functions/monitoring/prompt-optimizer.js';
 
 // ── PHASE 1: Pipeline Functions ──────────────────────────────────────────────
 import { modelRouterTest } from './functions/health/model-router-test.js';
@@ -82,6 +83,7 @@ app.use(
       llmLandscapeMonitor,
       matrixOptimizer,
       routingQualityScorer,
+      promptOptimizer,
       // Phase 1: Pipeline
       modelRouterTest,
       dealDetector,

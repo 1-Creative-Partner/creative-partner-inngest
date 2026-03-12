@@ -393,6 +393,28 @@ ${summary.recommended_action || "Review and follow up"}` }
         timestamp_event: (/* @__PURE__ */ new Date()).toISOString()
       });
     });
+
+    // Log output to prompt_result_log for quality tracking + optimization
+    await step.run("log-prompt-result", async () => {
+      await supabase.from("prompt_result_log").insert({
+        tenant_id: "creative-partner",
+        task_type: "transcript_intelligence",
+        model_used: AGENT_MODEL,
+        prompt_version: 1,
+        system_prompt: "Extract structured client intelligence facts from call transcripts. Identify: pain points, budget signals, timeline signals, service interest, decision maker status, objections, competitor mentions.",
+        user_prompt: call_transcript.substring(0, 500),
+        output: JSON.stringify({
+          facts_written: agentResults.factsWritten.length,
+          high_value_count: agentResults.highValueFacts.length,
+          primary_signal: agentResults.summary.primary_signal,
+          recommended_action: agentResults.summary.recommended_action,
+        }),
+        output_type: "client_facts",
+        updated_at: new Date().toISOString(),
+      });
+      return { logged: true };
+    });
+
     return {
       success: true,
       contactId,
