@@ -1,11 +1,10 @@
 import { inngest } from "../inngest-client.js";
 import { createClient } from "@supabase/supabase-js";
+import { routeModel } from "../model-router.js";
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-const BRIEFING_MODEL = "claude-haiku-4-5-20251001";
 const SLACK_WEBHOOK_BRIEFING = process.env.SLACK_WEBHOOK_BRIEFING || process.env.SLACK_WEBHOOK_AGENT_HEALTH || process.env.SLACK_WEBHOOK_PROPOSALS || "https://hooks.slack.com/services/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";
 async function getNewLeads() {
   const overnight = new Date(Date.now() - 12 * 60 * 60 * 1e3).toISOString();
@@ -59,23 +58,17 @@ Data:
 - Unresolved action items: ${data.unresolvedAlerts.length}
 
 Return ONLY the summary text (no JSON, no labels, just 2-3 sentences).`;
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "x-api-key": ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01",
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model: BRIEFING_MODEL,
-      max_tokens: 256,
-      messages: [{ role: "user", content: prompt }]
-    })
-  });
-  if (!res.ok)
-    return "Morning briefing generated \u2014 see details below.";
-  const response = await res.json();
-  return response.content?.[0]?.text || "Morning briefing \u2014 see details below.";
+  try {
+    const result = await routeModel({
+      task: "basic summarization",
+      prompt,
+      caller: "morning-briefing-agent",
+      maxTokens: 256,
+    });
+    return result.text || "Morning briefing — see details below.";
+  } catch {
+    return "Morning briefing generated — see details below.";
+  }
 }
 const morningBriefingAgent = inngest.createFunction(
   {
@@ -230,7 +223,7 @@ ${unresolvedAlerts.map(
       await supabase.from("prompt_result_log").insert({
         tenant_id: "creative-partner",
         task_type: "morning_briefing",
-        model_used: "claude-haiku-4-5-20251001",
+        model_used: "model-router",
         prompt_version: 1,
         system_prompt: "You are Chad Morgan's AI operations assistant at Creative Partner. Generate his concise daily briefing for Slack. Lead with what needs attention today.",
         user_prompt: `${briefingData.newLeads.length} new leads, ${briefingData.highValueFacts.length} high-value signals, ${briefingData.unresolvedAlerts.length} unresolved alerts`,

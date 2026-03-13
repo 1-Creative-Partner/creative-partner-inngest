@@ -17,9 +17,9 @@
 
 import { inngest } from '../../inngest-client.js';
 import { supabase } from '../../supabase-client.js';
+import { routeModel } from '../../model-router.js';
 
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL;
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const AUTO_APPROVE_CONFIDENCE = 0.95;
 
 export const sessionEnforcement = inngest.createFunction(
@@ -46,17 +46,6 @@ export const sessionEnforcement = inngest.createFunction(
 
     // ─── Step 2: Analyze session with Claude ────────────────────────────────
     const analysis = await step.run('analyze-session-with-claude', async () => {
-      if (!ANTHROPIC_API_KEY) {
-        logger.warn('No ANTHROPIC_API_KEY — skipping Claude analysis, using raw payload');
-        return {
-          evolution_entries: [],
-          awareness_updates: [],
-          knowledge_items: [],
-          session_quality_score: 0.8,
-          gaps_detected: [],
-        };
-      }
-
       const prompt = `You are analyzing a CP OS session close record. Extract structured data for Supabase writes.
 
 SESSION DATE: ${sessionData.session_date}
@@ -105,35 +94,26 @@ Return ONLY valid JSON matching this exact schema:
 
 Only extract entries that represent real decisions, learnings, or state changes from this session. Return empty arrays if nothing applies.`;
 
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 2000,
-          messages: [{ role: 'user', content: prompt }],
-        }),
-      });
-
-      if (!response.ok) {
-        const err = await response.text();
-        throw new Error(`Claude API failed: ${response.status} — ${err}`);
-      }
-
-      const result = await response.json();
-      const rawText = result.content?.[0]?.text || '{}';
-
       try {
-        const parsed = JSON.parse(rawText.replace(/```json\n?|\n?```/g, '').trim());
-        logger.info(`Claude analysis complete. Evolution entries: ${parsed.evolution_entries?.length || 0}, Gaps: ${parsed.gaps_detected?.length || 0}`);
-        return parsed;
-      } catch (e) {
-        logger.warn(`Claude response parse failed — using empty analysis. Raw: ${rawText.slice(0, 200)}`);
-        return { evolution_entries: [], awareness_updates: [], knowledge_items: [], session_quality_score: 0.7, gaps_detected: [] };
+        const result = await routeModel({
+          task: "classification",
+          prompt,
+          caller: "session-enforcement",
+          maxTokens: 2000,
+        });
+        const rawText = result.text || '{}';
+
+        try {
+          const parsed = JSON.parse(rawText.replace(/```json\n?|\n?```/g, '').trim());
+          logger.info(`Analysis complete. Evolution entries: ${parsed.evolution_entries?.length || 0}, Gaps: ${parsed.gaps_detected?.length || 0}`);
+          return parsed;
+        } catch (e) {
+          logger.warn(`Response parse failed — using empty analysis. Raw: ${rawText.slice(0, 200)}`);
+          return { evolution_entries: [], awareness_updates: [], knowledge_items: [], session_quality_score: 0.7, gaps_detected: [] };
+        }
+      } catch {
+        logger.warn('Model router failed — using empty analysis');
+        return { evolution_entries: [], awareness_updates: [], knowledge_items: [], session_quality_score: 0.8, gaps_detected: [] };
       }
     });
 
@@ -170,8 +150,8 @@ Only extract entries that represent real decisions, learnings, or state changes 
             validation_status: 'passed',
             inngest_run_id: runId,
             inngest_event_id: event.id,
-            llm_model: 'claude-haiku-4-5-20251001',
-            llm_provider: 'anthropic',
+            llm_model: 'model-router',
+            llm_provider: 'openrouter',
             gap_count: analysis.gaps_detected?.length || 0,
             updated_at: now,
           })

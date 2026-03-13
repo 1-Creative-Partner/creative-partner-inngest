@@ -1,11 +1,10 @@
 import { inngest } from "../inngest-client.js";
 import { createClient } from "@supabase/supabase-js";
+import { routeModel } from "../model-router.js";
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-const ANALYSIS_MODEL = "claude-sonnet-4-6";
 const SLACK_WEBHOOK_AGENT_HEALTH = process.env.SLACK_WEBHOOK_AGENT_HEALTH || process.env.SLACK_WEBHOOK_PROPOSALS || "https://hooks.slack.com/services/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";
 async function collectAgentStats() {
   const now = /* @__PURE__ */ new Date();
@@ -99,28 +98,22 @@ Return ONLY valid JSON:
   "recommendations": ["rec 1", "rec 2", "rec 3"],
   "health_score": 8
 }`;
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "x-api-key": ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01",
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model: ANALYSIS_MODEL,
-      max_tokens: 1024,
-      messages: [{ role: "user", content: prompt }]
-    })
-  });
-  if (!res.ok) {
+  let content;
+  try {
+    const result = await routeModel({
+      task: "analysis",
+      prompt,
+      caller: "meta-agent-optimizer",
+      maxTokens: 1024,
+    });
+    content = result.text || "{}";
+  } catch {
     return {
-      analysis: "Meta-agent analysis failed \u2014 API error.",
-      recommendations: ["Check ANTHROPIC_API_KEY in Render env vars"],
+      analysis: "Meta-agent analysis failed — model router error.",
+      recommendations: ["Check OpenRouter API key and model matrix"],
       healthScore: 5
     };
   }
-  const response = await res.json();
-  const content = response.content?.[0]?.text || "{}";
   try {
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch)
@@ -231,7 +224,7 @@ ${inactive.map((a) => `\u2022 ${a.agentId}`).join("\n")}`
           agent_stats: agentStats,
           system_health: systemHealth,
           generated_at: (/* @__PURE__ */ new Date()).toISOString(),
-          model: ANALYSIS_MODEL
+          routing: "model-router"
         },
         updated_at: (/* @__PURE__ */ new Date()).toISOString()
       }, { onConflict: "awareness_key" });

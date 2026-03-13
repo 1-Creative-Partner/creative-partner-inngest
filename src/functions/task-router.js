@@ -1,35 +1,11 @@
 import { inngest } from "../inngest-client.js";
 import { createClient } from "@supabase/supabase-js";
+import { routeModel } from "../model-router.js";
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-const CLASSIFY_MODEL = "claude-haiku-4-5-20251001";
-const DRAFT_MODEL = "claude-sonnet-4-6";
-
-// ── Helpers ────────────────────────────────────────────────────────────────
-
-async function callClaude(model, prompt, systemPrompt, maxTokens = 1024) {
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "x-api-key": ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: maxTokens,
-      system: systemPrompt || undefined,
-      messages: [{ role: "user", content: prompt }],
-    }),
-  });
-  if (!res.ok) throw new Error(`Claude API error: ${res.status}`);
-  const data = await res.json();
-  return data.content?.[0]?.text || "";
-}
 
 async function getClientContext(customerId, contactIdentifier) {
   if (!customerId && !contactIdentifier) return null;
@@ -146,8 +122,13 @@ Rules:
 - If no action needed (spam, automated, one-word reply), return []`;
 
   try {
-    const raw = await callClaude(CLASSIFY_MODEL, prompt, null, 512);
-    const match = raw.match(/\[[\s\S]*\]/);
+    const result = await routeModel({
+      task: "classification",
+      prompt,
+      caller: "task-router-classify",
+      maxTokens: 512,
+    });
+    const match = result.text.match(/\[[\s\S]*\]/);
     if (!match) return [];
     const parsed = JSON.parse(match[0]);
     return Array.isArray(parsed) ? parsed.filter(t => t.workflow && t.title) : [];
@@ -191,8 +172,13 @@ Chad's style: direct, genuine, no corporate speak, gets to the point fast.
 Draft the reply now. Do not include any explanation — just the message.`;
 
   try {
-    const draft = await callClaude(DRAFT_MODEL, prompt, null, 400);
-    return draft.trim();
+    const result = await routeModel({
+      task: "content writing",
+      prompt,
+      caller: "task-router-draft",
+      maxTokens: 400,
+    });
+    return result.text.trim();
   } catch {
     return null;
   }

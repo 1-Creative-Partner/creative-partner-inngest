@@ -1,11 +1,10 @@
 import { inngest } from "../inngest-client.js";
 import { createClient } from "@supabase/supabase-js";
+import { routeModel } from "../model-router.js";
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-const EXTRACTION_MODEL = "claude-haiku-4-5-20251001";
 const ghlInboundMessageProcessor = inngest.createFunction(
   {
     id: "ghl-inbound-message-processor",
@@ -108,30 +107,13 @@ const ghlCommunicationExtraction = inngest.createFunction(
       for (const [customerId, messages] of Object.entries(grouped)) {
         const messageContext = messages.map((m) => `[${m.direction?.toUpperCase() || "MSG"} - ${m.communication_type}]: ${m.content?.substring(0, 500)}`).join("\n\n");
         try {
-          const res = await fetch("https://api.anthropic.com/v1/messages", {
-            method: "POST",
-            headers: {
-              "x-api-key": ANTHROPIC_API_KEY,
-              "anthropic-version": "2023-06-01",
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              model: EXTRACTION_MODEL,
-              max_tokens: 1024,
-              messages: [{
-                role: "user",
-                content: `Analyze these business communications from a single client. Extract intelligence signals.\n\nCommunications:\n${messageContext}\n\nReturn ONLY valid JSON array, one object per message in the EXACT order given:\n[\n  {\n    "sentiment": "positive|neutral|negative|mixed",\n    "intent_tags": ["array", "of", "intent", "tags"],\n    "key_phrases": ["important", "phrases"],\n    "satisfaction_signal": 1-5,\n    "action_items": ["follow-up", "items"]\n  }\n]\n\nSentiment: positive=happy/interested, negative=frustrated/unhappy, neutral=transactional, mixed=both.\nIntent tags: from [purchase_intent, complaint, question, feedback, scheduling, payment, project_update, approval, revision_request, general_inquiry]\nSatisfaction: 1=very unhappy, 3=neutral, 5=very happy. null if unclear.`
-              }]
-            })
+          const routeResult = await routeModel({
+            task: "simple extraction",
+            prompt: `Analyze these business communications from a single client. Extract intelligence signals.\n\nCommunications:\n${messageContext}\n\nReturn ONLY valid JSON array, one object per message in the EXACT order given:\n[\n  {\n    "sentiment": "positive|neutral|negative|mixed",\n    "intent_tags": ["array", "of", "intent", "tags"],\n    "key_phrases": ["important", "phrases"],\n    "satisfaction_signal": 1-5,\n    "action_items": ["follow-up", "items"]\n  }\n]\n\nSentiment: positive=happy/interested, negative=frustrated/unhappy, neutral=transactional, mixed=both.\nIntent tags: from [purchase_intent, complaint, question, feedback, scheduling, payment, project_update, approval, revision_request, general_inquiry]\nSatisfaction: 1=very unhappy, 3=neutral, 5=very happy. null if unclear.`,
+            caller: "ghl-communication-extraction",
+            maxTokens: 1024,
           });
-          if (!res.ok) {
-            for (const msg of messages) {
-              results.push({ id: msg.id, updates: { processed: true, processed_at: new Date().toISOString(), sentiment: "unknown", intent_tags: ["extraction_error"] } });
-            }
-            continue;
-          }
-          const response = await res.json();
-          const content = response.content?.[0]?.text || "[]";
+          const content = routeResult.text || "[]";
           let extractions = [];
           try {
             const jsonMatch = content.match(/\[[\s\S]*\]/);
@@ -182,12 +164,12 @@ const ghlCommunicationExtraction = inngest.createFunction(
         episode_type: "measurement",
         source_system: "ghl",
         actor: "ghl-communication-extraction",
-        content: `Nightly communication extraction complete. Processed ${writeResult.successCount}/${unprocessed.length} messages using ${EXTRACTION_MODEL}. Customers analyzed: ${Object.keys(grouped).length}. Errors: ${writeResult.errorCount}.`,
+        content: `Nightly communication extraction complete. Processed ${writeResult.successCount}/${unprocessed.length} messages via model router. Customers analyzed: ${Object.keys(grouped).length}. Errors: ${writeResult.errorCount}.`,
         metadata: {
           messages_processed: writeResult.successCount,
           messages_total: unprocessed.length,
           customers_analyzed: Object.keys(grouped).length,
-          model: EXTRACTION_MODEL,
+          routing: "model-router",
           errors: writeResult.errorCount
         },
         timestamp_event: new Date().toISOString()
