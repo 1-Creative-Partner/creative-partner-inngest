@@ -81,7 +81,7 @@ async function extractAndClassifyTasks(intake, context) {
       }
       tasks.push({
         workflow,
-        title: step.length > 80 ? step.slice(0, 80) + "\u2026" : step,
+        title: step.length > 80 ? step.slice(0, 80) + "…" : step,
         priority: gpt.sentiment === "positive" ? 1 : 2,
         context_hint: `From call with ${context?.customer?.company_name || gpt.client_name || "Unknown"}. Intent: ${gpt.intent || "unknown"}. Services mentioned: ${(gpt.services_mentioned || []).join(", ") || "none"}.`,
       });
@@ -103,7 +103,7 @@ async function extractAndClassifyTasks(intake, context) {
     if (tasks.length === 0 && gpt.summary) {
       tasks.push({
         workflow: "follow_up_sms",
-        title: `Follow up after call \u2014 ${context?.customer?.company_name || "contact"}`,
+        title: `Follow up after call — ${context?.customer?.company_name || "contact"}`,
         priority: 3,
         context_hint: gpt.summary,
       });
