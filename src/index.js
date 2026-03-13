@@ -54,12 +54,21 @@ import { businessAnalyzer } from './functions/business-analyzer.js';
 // ── TASK ROUTER ──────────────────────────────────────────────────────────────
 import { taskRouterImmediate, taskRouterScheduled } from './functions/task-router.js';
 
+// ── SYSTEM AUDIT ─────────────────────────────────────────────────────────────
+import { systemAuditRunner, systemAuditOnDemand } from './functions/system-audit-runner.js';
+
+// ── SLACK ACTIONS ────────────────────────────────────────────────────────────
+import { setupSlackRoutes } from './routes/slack-actions.js';
+
 const app = express();
 app.use(express.json());
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'creative-partner-os', timestamp: new Date().toISOString() });
 });
+
+// Register Slack interactive button handler
+setupSlackRoutes(app);
 
 app.use(
   '/api/inngest',
@@ -94,6 +103,9 @@ app.use(
       // Task Router
       taskRouterImmediate,
       taskRouterScheduled,
+      // System Audit
+      systemAuditRunner,
+      systemAuditOnDemand,
     ],
   })
 );
