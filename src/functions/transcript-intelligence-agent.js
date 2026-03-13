@@ -1,15 +1,16 @@
 import { inngest } from "../inngest-client.js";
 import { createClient } from "@supabase/supabase-js";
+import { routeModel } from "../model-router.js";
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const AGENT_MODEL = "claude-haiku-4-5-20251001";
 const MAX_AGENT_ITERATIONS = 15;
 const SLACK_WEBHOOK_AGENT_ALERTS = process.env.SLACK_WEBHOOK_AGENT_ALERTS || process.env.SLACK_WEBHOOK_PROPOSALS || // fallback to known webhook
 "https://hooks.slack.com/services/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";
+// Tools in Anthropic format — routeModel passes through for Anthropic,
+// converts for OpenRouter if needed
 const AGENT_TOOLS = [
   {
     name: "write_client_fact",
@@ -133,7 +134,7 @@ async function handleWriteClientFact(input, context) {
       call_direction: context.callDirection,
       call_duration: context.callDuration,
       extracted_at: (/* @__PURE__ */ new Date()).toISOString(),
-      model: AGENT_MODEL,
+      model: "model-router",
       initial_gpt_extraction: context.initialExtraction
     },
     confidence: input.confidence,
@@ -209,30 +210,46 @@ High-value signals (is_high_value=true) include:
   let agentDone = false;
   while (!agentDone && iteration < MAX_AGENT_ITERATIONS) {
     iteration++;
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: AGENT_MODEL,
-        max_tokens: 1024,
-        system: systemPrompt,
-        tools: AGENT_TOOLS,
-        messages
-      })
+    const result = await routeModel({
+      task: "classification",
+      model: "claude-haiku-4-5-20251001",
+      messages: [{ role: "system", content: systemPrompt }, ...messages],
+      tools: AGENT_TOOLS,
+      caller: "transcript-intelligence-agent",
+      maxTokens: 1024,
     });
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`Agent API call failed (iter ${iteration}): ${res.status} ${err}`);
+
+    // Handle both OpenRouter (OpenAI format) and Anthropic (native format) responses
+    let content, stopReason, toolUses;
+    if (result.rawResponse?.choices) {
+      // OpenRouter/OpenAI format
+      const msg = result.rawResponse.choices[0].message;
+      const finishReason = result.rawResponse.choices[0].finish_reason;
+      stopReason = finishReason === "tool_calls" ? "tool_use" : "end_turn";
+      content = [];
+      if (msg.content) content.push({ type: "text", text: msg.content });
+      if (msg.tool_calls) {
+        for (const tc of msg.tool_calls) {
+          content.push({
+            type: "tool_use",
+            id: tc.id,
+            name: tc.function.name,
+            input: JSON.parse(tc.function.arguments),
+          });
+        }
+      }
+    } else if (result.rawResponse?.content) {
+      // Anthropic native format
+      content = result.rawResponse.content || [];
+      stopReason = result.stopReason || result.rawResponse.stop_reason;
+    } else {
+      // Simple text response (no tools used)
+      content = [{ type: "text", text: result.text }];
+      stopReason = "end_turn";
     }
-    const response = await res.json();
-    const stopReason = response.stop_reason;
-    const content = response.content || [];
+
     messages.push({ role: "assistant", content });
-    const toolUses = content.filter((c) => c.type === "tool_use");
+    toolUses = content.filter((c) => c.type === "tool_use");
     const toolResults = [];
     for (const toolUse of toolUses) {
       const toolInput = toolUse.input || {};
@@ -386,7 +403,7 @@ ${summary.recommended_action || "Review and follow up"}` }
           high_value_signals: agentResults.highValueFacts.length,
           primary_signal: agentResults.summary.primary_signal,
           recommended_action: agentResults.summary.recommended_action,
-          model: AGENT_MODEL,
+          routing: "model-router",
           agent_iterations: "see function logs",
           intake_id: intakeId
         },
@@ -399,7 +416,7 @@ ${summary.recommended_action || "Review and follow up"}` }
       await supabase.from("prompt_result_log").insert({
         tenant_id: "creative-partner",
         task_type: "transcript_intelligence",
-        model_used: AGENT_MODEL,
+        model_used: "model-router",
         prompt_version: 1,
         system_prompt: "Extract structured client intelligence facts from call transcripts. Identify: pain points, budget signals, timeline signals, service interest, decision maker status, objections, competitor mentions.",
         user_prompt: call_transcript.substring(0, 500),

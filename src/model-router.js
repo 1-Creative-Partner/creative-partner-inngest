@@ -80,9 +80,11 @@ async function logRouting(entry) {
  * @param {string} [opts.model] - Force a specific model_id
  * @param {string} [opts.caller] - Which function is calling (for audit trail)
  * @param {number} [opts.maxTokens=256] - Max output tokens
- * @returns {Promise<{text: string, model: string, provider: string, cost_tier: string, route: string}>}
+ * @param {Array} [opts.tools] - OpenAI-format tools for function calling
+ * @param {Array} [opts.messages] - Full messages array (overrides prompt/system if provided)
+ * @returns {Promise<{text: string, model: string, provider: string, cost_tier: string, route: string, toolCalls?: Array, rawResponse?: Object}>}
  */
-export async function routeModel({ task, prompt, system, model, caller = 'unknown', maxTokens = 256 }) {
+export async function routeModel({ task, prompt, system, model, caller = 'unknown', maxTokens = 256, tools, messages: rawMessages }) {
   const startTime = Date.now();
   let targetModel;
   let openrouterId;
@@ -102,13 +104,24 @@ export async function routeModel({ task, prompt, system, model, caller = 'unknow
     throw new Error('Must provide either task or model');
   }
 
-  const messages = [];
-  if (system) messages.push({ role: 'system', content: system });
-  messages.push({ role: 'user', content: prompt });
+  // Build messages: use raw messages if provided, else construct from prompt/system
+  const messages = rawMessages || (() => {
+    const m = [];
+    if (system) m.push({ role: 'system', content: system });
+    if (prompt) m.push({ role: 'user', content: prompt });
+    return m;
+  })();
 
   // Try OpenRouter first
   if (OPENROUTER_API_KEY && openrouterId) {
     try {
+      const body = {
+        model: openrouterId,
+        messages,
+        max_tokens: maxTokens,
+      };
+      if (tools && tools.length > 0) body.tools = tools;
+
       const res = await fetch(OPENROUTER_BASE, {
         method: 'POST',
         headers: {
@@ -117,16 +130,14 @@ export async function routeModel({ task, prompt, system, model, caller = 'unknow
           'HTTP-Referer': 'https://creativepartnersolutions.com',
           'X-Title': 'Creative Partner OS',
         },
-        body: JSON.stringify({
-          model: openrouterId,
-          messages,
-          max_tokens: maxTokens,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (res.ok) {
         const data = await res.json();
-        const text = data.choices?.[0]?.message?.content || '';
+        const message = data.choices?.[0]?.message || {};
+        const text = message.content || '';
+        const toolCalls = message.tool_calls || null;
         const usage = data.usage || {};
         const latencyMs = Date.now() - startTime;
 
@@ -141,6 +152,10 @@ export async function routeModel({ task, prompt, system, model, caller = 'unknow
           input_tokens: usage.prompt_tokens || null,
           output_tokens: usage.completion_tokens || null,
         };
+        if (toolCalls) {
+          result.toolCalls = toolCalls;
+          result.rawResponse = data;
+        }
 
         // Log to model_routing_log (awaited — fire-and-forget breaks inside Inngest step.run)
         await logRouting({
@@ -155,7 +170,7 @@ export async function routeModel({ task, prompt, system, model, caller = 'unknow
           input_tokens: usage.prompt_tokens || null,
           output_tokens: usage.completion_tokens || null,
           latency_ms: latencyMs,
-          prompt_preview: prompt.substring(0, 200),
+          prompt_preview: (prompt || JSON.stringify(messages).substring(0, 200)).substring(0, 200),
           output_preview: text.substring(0, 200),
         });
 
@@ -171,6 +186,31 @@ export async function routeModel({ task, prompt, system, model, caller = 'unknow
   // Fallback: direct Anthropic API
   if (ANTHROPIC_API_KEY && (targetModel.provider === 'anthropic' || !openrouterId)) {
     const anthropicModel = targetModel.model_id || 'claude-haiku-4-5-20251001';
+    const anthropicBody = {
+      model: anthropicModel,
+      max_tokens: maxTokens,
+    };
+
+    // Convert tools from OpenAI format to Anthropic format if provided
+    if (tools && tools.length > 0) {
+      anthropicBody.tools = tools.map(t => ({
+        name: t.function?.name || t.name,
+        description: t.function?.description || t.description,
+        input_schema: t.function?.parameters || t.input_schema,
+      }));
+    }
+
+    // Build Anthropic messages
+    if (rawMessages) {
+      // Extract system from messages if present
+      const sysMsg = rawMessages.find(m => m.role === 'system');
+      if (sysMsg) anthropicBody.system = sysMsg.content;
+      anthropicBody.messages = rawMessages.filter(m => m.role !== 'system');
+    } else {
+      if (system) anthropicBody.system = system;
+      anthropicBody.messages = [{ role: 'user', content: prompt }];
+    }
+
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -178,16 +218,13 @@ export async function routeModel({ task, prompt, system, model, caller = 'unknow
         'x-api-key': ANTHROPIC_API_KEY,
         'anthropic-version': '2023-06-01',
       },
-      body: JSON.stringify({
-        model: anthropicModel,
-        max_tokens: maxTokens,
-        messages: [{ role: 'user', content: system ? `${system}\n\n${prompt}` : prompt }],
-      }),
+      body: JSON.stringify(anthropicBody),
     });
 
     if (!res.ok) throw new Error(`Anthropic API error: ${res.status}`);
     const data = await res.json();
-    const text = data.content?.[0]?.text || '';
+    const text = data.content?.filter(c => c.type === 'text').map(c => c.text).join('') || '';
+    const anthropicToolUses = data.content?.filter(c => c.type === 'tool_use') || [];
     const usage = data.usage || {};
     const latencyMs = Date.now() - startTime;
 
@@ -201,6 +238,11 @@ export async function routeModel({ task, prompt, system, model, caller = 'unknow
       input_tokens: usage.input_tokens || null,
       output_tokens: usage.output_tokens || null,
     };
+    if (anthropicToolUses.length > 0) {
+      result.toolCalls = anthropicToolUses;
+      result.rawResponse = data;
+      result.stopReason = data.stop_reason;
+    }
 
     await logRouting({
       function_name: caller,
