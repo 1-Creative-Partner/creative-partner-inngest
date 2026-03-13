@@ -51,6 +51,9 @@ import { modelRouterTest } from './functions/health/model-router-test.js';
 import { dealDetector } from './functions/deal-detector.js';
 import { businessAnalyzer } from './functions/business-analyzer.js';
 
+// ── TASK ROUTER ──────────────────────────────────────────────────────────────
+import { taskRouterImmediate, taskRouterScheduled } from './functions/task-router.js';
+
 const app = express();
 app.use(express.json());
 
@@ -88,6 +91,9 @@ app.use(
       modelRouterTest,
       dealDetector,
       businessAnalyzer,
+      // Task Router
+      taskRouterImmediate,
+      taskRouterScheduled,
     ],
   })
 );

@@ -116,8 +116,8 @@ const ghlTranscriptProcessor = inngest.createFunction(
         sentiment: intelligence.sentiment,
         intent_tags: intelligence.tags,
         processed: true,
-        processed_at: (/* @__PURE__ */ new Date()).toISOString(),
-        received_at: (/* @__PURE__ */ new Date()).toISOString()
+        processed_at: new Date().toISOString(),
+        received_at: new Date().toISOString()
       }).select("id").single();
       if (error) {
         console.warn("communication_intake write warning:", error.message);
@@ -125,12 +125,22 @@ const ghlTranscriptProcessor = inngest.createFunction(
       }
       return data;
     });
+
+    // Fire task-router event immediately after successful intake write
+    if (intakeRecord?.id) {
+      await step.run("fire-task-router", async () => {
+        await inngest.send({
+          name: "communication/intake.received",
+          data: { intake_id: intakeRecord.id },
+        });
+      });
+    }
     await step.run("enrich-knowledge-graph", async () => {
       if (!customer.id)
         return { skipped: true, reason: "No customer ID" };
       const { data: existing } = await supabase.from("client_knowledge_graph").select("id, call_intelligence").eq("customer_id", customer.id).single();
       const callIntelligenceEntry = {
-        date: (/* @__PURE__ */ new Date()).toISOString(),
+        date: new Date().toISOString(),
         intent: intelligence.intent,
         sentiment: intelligence.sentiment,
         pain_points: intelligence.pain_points,
@@ -146,7 +156,7 @@ const ghlTranscriptProcessor = inngest.createFunction(
         const existingCalls = Array.isArray(existing.call_intelligence) ? existing.call_intelligence : [];
         await supabase.from("client_knowledge_graph").update({
           call_intelligence: [...existingCalls, callIntelligenceEntry],
-          updated_at: (/* @__PURE__ */ new Date()).toISOString()
+          updated_at: new Date().toISOString()
         }).eq("id", existing.id);
       } else {
         await supabase.from("client_knowledge_graph").upsert({
@@ -177,7 +187,7 @@ const ghlTranscriptProcessor = inngest.createFunction(
           call_duration,
           intake_id: intakeRecord?.id
         },
-        timestamp_event: (/* @__PURE__ */ new Date()).toISOString()
+        timestamp_event: new Date().toISOString()
       });
     });
     return {

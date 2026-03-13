@@ -31,10 +31,10 @@ const ghlInboundMessageProcessor = inngest.createFunction(
       const { data } = await supabase.from("customer").select("id").eq("ghl_contact_id", contactId).limit(1).single();
       return data?.id || null;
     });
-    await step.run("buffer-to-intake", async () => {
+    const intakeResult = await step.run("buffer-to-intake", async () => {
       if (!body || body.trim().length === 0)
         return { skipped: true, reason: "Empty message body" };
-      const { error } = await supabase.from("communication_intake").insert({
+      const { data, error } = await supabase.from("communication_intake").insert({
         source_channel: messageType || "sms",
         source_system: "ghl",
         customer_id: customerId,
@@ -47,14 +47,24 @@ const ghlInboundMessageProcessor = inngest.createFunction(
           source: "ghl-webhook"
         },
         processed: false,
-        received_at: dateAdded || (/* @__PURE__ */ new Date()).toISOString()
-      });
+        received_at: dateAdded || new Date().toISOString()
+      }).select("id").single();
       if (error) {
         console.warn("communication_intake buffer warning:", error.message);
         return { skipped: true, error: error.message };
       }
-      return { buffered: true };
+      return { buffered: true, id: data?.id };
     });
+
+    // Fire task-router event immediately after successful intake write
+    if (intakeResult?.id) {
+      await step.run("fire-task-router", async () => {
+        await inngest.send({
+          name: "communication/intake.received",
+          data: { intake_id: intakeResult.id },
+        });
+      });
+    }
     return {
       success: true,
       contactId,
@@ -110,31 +120,13 @@ const ghlCommunicationExtraction = inngest.createFunction(
               max_tokens: 1024,
               messages: [{
                 role: "user",
-                content: `Analyze these business communications from a single client. Extract intelligence signals.
-
-Communications:
-${messageContext}
-
-Return ONLY valid JSON array, one object per message in the EXACT order given:
-[
-  {
-    "sentiment": "positive|neutral|negative|mixed",
-    "intent_tags": ["array", "of", "intent", "tags"],
-    "key_phrases": ["important", "phrases"],
-    "satisfaction_signal": 1-5,
-    "action_items": ["follow-up", "items"]
-  }
-]
-
-Sentiment: positive=happy/interested, negative=frustrated/unhappy, neutral=transactional, mixed=both.
-Intent tags: from [purchase_intent, complaint, question, feedback, scheduling, payment, project_update, approval, revision_request, general_inquiry]
-Satisfaction: 1=very unhappy, 3=neutral, 5=very happy. null if unclear.`
+                content: `Analyze these business communications from a single client. Extract intelligence signals.\n\nCommunications:\n${messageContext}\n\nReturn ONLY valid JSON array, one object per message in the EXACT order given:\n[\n  {\n    "sentiment": "positive|neutral|negative|mixed",\n    "intent_tags": ["array", "of", "intent", "tags"],\n    "key_phrases": ["important", "phrases"],\n    "satisfaction_signal": 1-5,\n    "action_items": ["follow-up", "items"]\n  }\n]\n\nSentiment: positive=happy/interested, negative=frustrated/unhappy, neutral=transactional, mixed=both.\nIntent tags: from [purchase_intent, complaint, question, feedback, scheduling, payment, project_update, approval, revision_request, general_inquiry]\nSatisfaction: 1=very unhappy, 3=neutral, 5=very happy. null if unclear.`
               }]
             })
           });
           if (!res.ok) {
             for (const msg of messages) {
-              results.push({ id: msg.id, updates: { processed: true, processed_at: (/* @__PURE__ */ new Date()).toISOString(), sentiment: "unknown", intent_tags: ["extraction_error"] } });
+              results.push({ id: msg.id, updates: { processed: true, processed_at: new Date().toISOString(), sentiment: "unknown", intent_tags: ["extraction_error"] } });
             }
             continue;
           }
@@ -154,7 +146,7 @@ Satisfaction: 1=very unhappy, 3=neutral, 5=very happy. null if unclear.`
               id: messages[i].id,
               updates: {
                 processed: true,
-                processed_at: (/* @__PURE__ */ new Date()).toISOString(),
+                processed_at: new Date().toISOString(),
                 sentiment: extraction.sentiment || "neutral",
                 intent_tags: extraction.intent_tags || [],
                 satisfaction_signal: extraction.satisfaction_signal || null,
@@ -165,7 +157,7 @@ Satisfaction: 1=very unhappy, 3=neutral, 5=very happy. null if unclear.`
           }
         } catch (err) {
           for (const msg of messages) {
-            results.push({ id: msg.id, updates: { processed: true, processed_at: (/* @__PURE__ */ new Date()).toISOString(), sentiment: "unknown", intent_tags: ["extraction_failed"] } });
+            results.push({ id: msg.id, updates: { processed: true, processed_at: new Date().toISOString(), sentiment: "unknown", intent_tags: ["extraction_failed"] } });
           }
         }
       }
@@ -198,7 +190,7 @@ Satisfaction: 1=very unhappy, 3=neutral, 5=very happy. null if unclear.`
           model: EXTRACTION_MODEL,
           errors: writeResult.errorCount
         },
-        timestamp_event: (/* @__PURE__ */ new Date()).toISOString()
+        timestamp_event: new Date().toISOString()
       });
     });
     return {
