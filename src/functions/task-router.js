@@ -232,6 +232,82 @@ async function writeTask(task, intake, draftMessage, context) {
   return data;
 }
 
+// ── Slack Notification ──────────────────────────────────────────────────────
+
+const WORKFLOW_LABELS = {
+  follow_up_sms: { emoji: "💬", label: "Follow-Up SMS" },
+  follow_up_email: { emoji: "📧", label: "Follow-Up Email" },
+  get_quote: { emoji: "💰", label: "Prepare Quote" },
+  schedule_call: { emoji: "📞", label: "Schedule Call" },
+  send_info: { emoji: "📎", label: "Send Info" },
+  content_work: { emoji: "✏️", label: "Content Work" },
+  admin: { emoji: "⚙️", label: "Admin Task" },
+};
+
+async function notifySlack(task, intake, draftMessage, context) {
+  const { data: cred } = await supabase
+    .from("api_credential")
+    .select("credential_value")
+    .eq("service", "slack")
+    .eq("credential_key", "webhook_url")
+    .single();
+
+  const webhookUrl = cred?.credential_value;
+  if (!webhookUrl) return;
+
+  const wf = WORKFLOW_LABELS[task.workflow] || { emoji: "📋", label: task.workflow };
+  const contactName = intake.contact_name || context?.customer?.primary_contact_name || "Unknown";
+  const companyName = context?.customer?.company_name || "";
+  const priority = task.priority === 1 ? "🔴 P1" : task.priority === 2 ? "🟡 P2" : "⚪ P3";
+
+  // Fetch the task ID we just wrote
+  const { data: taskRows } = await supabase
+    .from("task")
+    .select("id")
+    .eq("name", task.title)
+    .eq("status", "pending")
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  const taskId = taskRows?.[0]?.id || "unknown";
+
+  const blocks = [
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `${wf.emoji} *${wf.label}* — ${priority}\n*${contactName}*${companyName ? ` (${companyName})` : ""}\n${task.title}`,
+      },
+    },
+  ];
+
+  // Add draft preview if exists
+  if (draftMessage) {
+    const preview = draftMessage.length > 200 ? draftMessage.slice(0, 200) + "…" : draftMessage;
+    blocks.push({
+      type: "section",
+      text: { type: "mrkdwn", text: `> _${preview}_` },
+    });
+  }
+
+  // Add action buttons
+  const actions = [];
+  if (draftMessage && (task.workflow === "follow_up_sms" || task.workflow === "follow_up_email")) {
+    actions.push({ type: "button", text: { type: "plain_text", text: "✅ Send It" }, style: "primary", action_id: "send_draft", value: taskId });
+  } else {
+    actions.push({ type: "button", text: { type: "plain_text", text: "✅ Done" }, style: "primary", action_id: "mark_done", value: taskId });
+  }
+  actions.push({ type: "button", text: { type: "plain_text", text: "⊘ Skip" }, action_id: "skip_task", value: taskId });
+
+  blocks.push({ type: "actions", elements: actions });
+
+  await fetch(webhookUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ blocks }),
+  }).catch(err => console.warn("Slack notification failed:", err.message));
+}
+
 // ── Main processor ─────────────────────────────────────────────────────────
 
 async function processIntakeRow(intake) {
@@ -251,12 +327,14 @@ async function processIntakeRow(intake) {
     tasks.map(t => draftMessage(t, intake, context).catch(() => null))
   );
 
-  // Write all tasks
+  // Write all tasks + notify Slack
   const written = [];
   for (let i = 0; i < tasks.length; i++) {
     try {
       await writeTask(tasks[i], intake, drafts[i], context);
       written.push(tasks[i]);
+      // Send Slack Block Kit card for each task
+      await notifySlack(tasks[i], intake, drafts[i], context).catch(() => {});
     } catch (e) {
       console.warn(`Failed to write task ${i}:`, e.message);
     }
