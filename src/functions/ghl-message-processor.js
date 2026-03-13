@@ -20,10 +20,13 @@ const ghlInboundMessageProcessor = inngest.createFunction(
       conversationId,
       locationId,
       type: messageType,
-      body,
+      body: bodyField,
+      message_body,
+      message_subject,
       direction,
       dateAdded
     } = event.data;
+    const body = bodyField || message_body || message_subject || "";
     const customerId = await step.run("lookup-customer", async () => {
       const { data } = await supabase.from("customer").select("id").eq("ghl_contact_id", contactId).limit(1).single();
       return data?.id || null;
