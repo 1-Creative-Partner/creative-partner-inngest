@@ -59,6 +59,10 @@ import { taskRouterImmediate, taskRouterScheduled } from './functions/task-route
 import { systemAuditRunner, systemAuditOnDemand } from './functions/system-audit-runner.js';
 import { weeklySystemAudit } from './functions/weekly-system-audit.js';
 
+// ── HEALTH MONITORS ──────────────────────────────────────────────────────────
+import { portalHealthMonitor } from './functions/portal-health-monitor.js';
+import { pipelineSmokeTest } from './functions/pipeline-smoke-test.js';
+
 // ── SLACK ACTIONS ────────────────────────────────────────────────────────────
 import { setupSlackRoutes } from './routes/slack-actions.js';
 
@@ -109,6 +113,9 @@ app.use(
       systemAuditRunner,
       systemAuditOnDemand,
       weeklySystemAudit,
+      // Health Monitors
+      portalHealthMonitor,
+      pipelineSmokeTest,
     ],
   })
 );
