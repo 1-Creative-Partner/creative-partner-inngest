@@ -109,6 +109,10 @@ ${event_type}` }
           ]
         };
       }
+      if (!SLACK_WEBHOOK_PROPOSALS) {
+        console.warn("SLACK_WEBHOOK_PROPOSALS not set, skipping Slack notification");
+        return { sent: false, reason: "no_webhook_url", eventType: event_type };
+      }
       const res = await fetch(SLACK_WEBHOOK_PROPOSALS, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

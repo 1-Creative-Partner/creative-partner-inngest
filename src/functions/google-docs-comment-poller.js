@@ -22,13 +22,15 @@ const googleDocsCommentPoller = inngest.createFunction(
     if (activeDocs.length === 0) {
       return { success: true, docs_checked: 0, new_comments: 0 };
     }
-    const drive = await step.run("init-google-drive", async () => {
-      const auth = new google.auth.GoogleAuth({
-        credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY),
-        scopes: ["https://www.googleapis.com/auth/drive"]
-      });
-      return google.drive({ version: "v3", auth });
+    if (!process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
+      console.warn("GOOGLE_SERVICE_ACCOUNT_KEY not set, skipping comment polling");
+      return { success: false, reason: "no_google_credentials", docs_checked: 0, new_comments: 0 };
+    }
+    const googleAuth = new google.auth.GoogleAuth({
+      credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY),
+      scopes: ["https://www.googleapis.com/auth/drive"]
     });
+    const drive = google.drive({ version: "v3", auth: googleAuth });
     const results = await step.run("check-all-docs-for-comments", async () => {
       const results2 = [];
       for (const doc of activeDocs) {
@@ -187,6 +189,9 @@ const checkSingleDocComments = inngest.createFunction(
   { event: "google-docs/check-comments" },
   async ({ event, step }) => {
     const { google_doc_id, content_revision_id } = event.data;
+    if (!process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
+      return { success: false, reason: "no_google_credentials" };
+    }
     const auth = new google.auth.GoogleAuth({
       credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY),
       scopes: ["https://www.googleapis.com/auth/drive"]

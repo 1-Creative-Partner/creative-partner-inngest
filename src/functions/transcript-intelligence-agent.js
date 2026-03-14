@@ -324,8 +324,8 @@ const transcriptIntelligenceAgent = inngest.createFunction(
       }
     });
     const intakeId = await step.run("find-intake-record", async () => {
-      const { data } = await supabase.from("communication_intake").select("id").eq("ghl_contact_id", contactId).eq("communication_type", "call_transcript").order("created_at", { ascending: false }).limit(1).single();
-      return data?.id || null;
+      const { data: rows } = await supabase.from("communication_intake").select("id").eq("contact_identifier", contactId).eq("source_channel", "call_transcript").order("created_at", { ascending: false }).limit(1);
+      return rows?.[0]?.id || null;
     });
     const agentResults = await step.run("run-intelligence-agent", async () => {
       return await runAgentLoop(

@@ -204,6 +204,7 @@ export const llmLandscapeMonitor = inngest.createFunction(
         body: JSON.stringify({
           episode_type: "measurement",
           source_system: "claude",
+          timestamp_event: new Date().toISOString(),
           actor: "inngest/llm-landscape-monitor",
           content: `Weekly LLM scan: ${allNewModels.length} new models detected across ${allFindings.length} providers. Known models: ${currentModels.length}. ${allNewModels.length > 0 ? "New: " + allNewModels.map((m) => m.model_id).join(", ") : "No changes."}`,
           tags: ["llm", "monitoring", "weekly"],

@@ -35,7 +35,8 @@ const ghlFormProcessor = inngest.createFunction(
     const customer = await step.run("lookup-customer", async () => {
       if (!resolvedContactId)
         return { id: null, company_name: "Unknown", email: null };
-      const { data } = await supabase.from("customer").select("id, company_name, email, tenant_id").eq("ghl_contact_id", resolvedContactId).limit(1).single();
+      const { data: rows } = await supabase.from("customer").select("id, company_name, email, tenant_id").eq("ghl_contact_id", resolvedContactId).limit(1);
+      const data = rows?.[0];
       if (data)
         return data;
       const companyName = formData.company_name || formData.business_name || formData.companyName || [formData.first_name, formData.last_name].filter(Boolean).join(" ") || contact?.name || "Unknown";
@@ -46,14 +47,15 @@ const ghlFormProcessor = inngest.createFunction(
       const contentSummary = Object.entries(formData).filter(([, v]) => v != null && v !== "").map(([k, v]) => `${k}: ${v}`).join("\n").substring(0, 2e3);
       const { error } = await supabase.from("communication_intake").insert({
         customer_id: customer.id,
-        ghl_contact_id: resolvedContactId,
-        location_id: locationId,
-        communication_type: "form_submission",
+        contact_identifier: resolvedContactId,
+        source_channel: "form_submission",
+        source_system: "ghl",
         direction: "inbound",
-        content: contentSummary || "[No form data]",
-        metadata: {
+        raw_content: contentSummary || "[No form data]",
+        key_entities: {
           form_id: resolvedFormId,
           form_name: resolvedFormName,
+          location_id: locationId,
           submitted_at: submittedAt,
           raw_data: formData,
           is_high_value: isHighValue,

@@ -53,9 +53,9 @@ const ghlTranscriptProcessor = inngest.createFunction(
       };
     });
     const customer = await step.run("lookup-customer", async () => {
-      const { data } = await supabase.from("customer").select("id, company_name, tenant_id, ghl_contact_id").eq("ghl_contact_id", contactId).limit(1).single();
-      if (data)
-        return data;
+      const { data: rows } = await supabase.from("customer").select("id, company_name, tenant_id, ghl_contact_id").eq("ghl_contact_id", contactId).limit(1);
+      if (rows?.[0])
+        return rows[0];
       try {
         const pit = await getGHLToken(locationId);
         const res = await fetch(`https://services.leadconnectorhq.com/contacts/${contactId}`, {
@@ -99,12 +99,12 @@ const ghlTranscriptProcessor = inngest.createFunction(
         processed: true,
         processed_at: new Date().toISOString(),
         received_at: new Date().toISOString()
-      }).select("id").single();
+      }).select("id").limit(1);
       if (error) {
         console.warn("communication_intake write warning:", error.message);
         return { id: null, skipped: true };
       }
-      return data;
+      return data?.[0] || { id: null };
     });
 
     // Fire task-router event immediately after successful intake write
@@ -119,7 +119,8 @@ const ghlTranscriptProcessor = inngest.createFunction(
     await step.run("enrich-knowledge-graph", async () => {
       if (!customer.id)
         return { skipped: true, reason: "No customer ID" };
-      const { data: existing } = await supabase.from("client_knowledge_graph").select("id, call_intelligence").eq("customer_id", customer.id).single();
+      const { data: kgRows } = await supabase.from("client_knowledge_graph").select("id, call_intelligence").eq("customer_id", customer.id).limit(1);
+      const existing = kgRows?.[0] || null;
       const callIntelligenceEntry = {
         date: new Date().toISOString(),
         intent: intelligence.intent,

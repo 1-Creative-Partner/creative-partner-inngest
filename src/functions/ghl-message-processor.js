@@ -132,8 +132,7 @@ const ghlCommunicationExtraction = inngest.createFunction(
                 sentiment: extraction.sentiment || "neutral",
                 intent_tags: extraction.intent_tags || [],
                 satisfaction_signal: extraction.satisfaction_signal || null,
-                key_phrases: extraction.key_phrases || [],
-                action_items: extraction.action_items || []
+                key_entities: { key_phrases: extraction.key_phrases || [], action_items: extraction.action_items || [] }
               }
             });
           }
