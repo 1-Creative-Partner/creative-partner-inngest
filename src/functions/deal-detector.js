@@ -1,5 +1,6 @@
 import { inngest } from '../inngest-client.js';
 import { supabase } from '../supabase-client.js';
+import { getGHLToken } from '../ghl-token.js';
 
 /**
  * Deal Detector — Evaluates client_facts after transcript processing
@@ -14,25 +15,6 @@ import { supabase } from '../supabase-client.js';
 
 const GHL_PIPELINE_ID = '2AbGBIocWixPhaQXv1nx'; // Business Development pipeline
 const GHL_LOCATION_ID = 'VpL3sVe4Vb1ANBx9DOL6';
-
-async function getGHLToken() {
-  const { data } = await supabase
-    .from('api_credential')
-    .select('credential_value')
-    .not('credential_value', 'is', null);
-
-  if (!data) throw new Error('No api_credential records found');
-
-  for (const cred of data) {
-    try {
-      const parsed = JSON.parse(cred.credential_value);
-      if (parsed.location_id === GHL_LOCATION_ID && parsed.token?.startsWith('pit-')) {
-        return parsed.token;
-      }
-    } catch { continue; }
-  }
-  throw new Error('No PIT token found for GHL location');
-}
 
 export const dealDetector = inngest.createFunction(
   {

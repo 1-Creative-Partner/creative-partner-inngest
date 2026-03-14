@@ -1,5 +1,6 @@
 import { inngest } from '../inngest-client.js';
 import { supabase } from '../supabase-client.js';
+import { getGHLToken } from '../ghl-token.js';
 
 /**
  * Client Onboarding — Full provisioning after deal closes
@@ -20,25 +21,6 @@ import { supabase } from '../supabase-client.js';
 
 const SLACK_WEBHOOK_SYSTEM_ALERTS = process.env.SLACK_WEBHOOK_SYSTEM_ALERTS;
 const GHL_LOCATION_ID = 'VpL3sVe4Vb1ANBx9DOL6';
-
-async function getGHLToken() {
-  const { data } = await supabase
-    .from('api_credential')
-    .select('credential_value')
-    .eq('id', 'ac_312efcfe-7abc-4d0a-9590-d58fc5389920')
-    .single();
-
-  let token;
-  try {
-    const parsed = JSON.parse(data?.credential_value || '{}');
-    token = parsed.token || parsed.access_token || data?.credential_value || '';
-  } catch {
-    token = data?.credential_value || '';
-  }
-
-  if (!token) throw new Error('No GHL token available');
-  return token;
-}
 
 export const clientOnboardingAutomation = inngest.createFunction(
   {

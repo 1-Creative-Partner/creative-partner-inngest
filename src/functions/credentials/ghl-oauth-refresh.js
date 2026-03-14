@@ -150,6 +150,31 @@ export const ghlOauthRefresh = inngest.createFunction(
         });
         if (monitorError) logger.warn(`monitoring_events insert failed (non-fatal): ${monitorError.message}`);
 
+        // Sync to api_credential so legacy consumers (deal-detector, etc.) get fresh tokens too
+        // The credential_value is JSON with a "token" field that consumers parse
+        const locationCredMap = {
+          'VpL3sVe4Vb1ANBx9DOL6': 'pit_creative_partner',
+          'C6ALWYCMrzuUGZQWGS33': 'pit_jumpstart_2_recovery',
+          '1g6SSCGibOPFz5vLATNV': 'pit_bailey_brothers',
+        };
+        const credKey = locationCredMap[account.location_id];
+        if (credKey) {
+          const credValue = JSON.stringify({
+            token: tokenData.access_token,
+            location: account.location_name,
+            location_id: account.location_id,
+            refreshed: refreshedAt,
+            expires: expiresAt,
+          });
+          const { error: credErr } = await supabase
+            .from('api_credential')
+            .update({ credential_value: credValue, updated_at: refreshedAt })
+            .eq('service', 'ghl')
+            .eq('credential_key', credKey);
+          if (credErr) logger.warn(`api_credential sync failed for ${credKey} (non-fatal): ${credErr.message}`);
+          else logger.info(`api_credential synced for ${credKey}`);
+        }
+
         logger.info(`Token refreshed and saved for ${account.location_name}. New expiry: ${expiresAt}`);
         return {
           success: true,

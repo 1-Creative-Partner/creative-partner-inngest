@@ -1,26 +1,7 @@
 import { inngest } from "../inngest-client.js";
-import { createClient } from "@supabase/supabase-js";
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+import { supabase } from "../supabase-client.js";
+import { getGHLToken } from "../ghl-token.js";
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-async function getGHLPIT(locationId) {
-  const { data } = await supabase.from("api_credential").select("credential_value, id").not("credential_value", "is", null);
-  if (!data)
-    throw new Error("No api_credential records found");
-  for (const cred of data) {
-    try {
-      const parsed = JSON.parse(cred.credential_value);
-      if (parsed.location_id === locationId && parsed.token?.startsWith("pit-")) {
-        return parsed.token;
-      }
-    } catch {
-      continue;
-    }
-  }
-  throw new Error(`No PIT token found for location: ${locationId}`);
-}
 const ghlTranscriptProcessor = inngest.createFunction(
   {
     id: "ghl-transcript-processor",
@@ -76,7 +57,7 @@ const ghlTranscriptProcessor = inngest.createFunction(
       if (data)
         return data;
       try {
-        const pit = await getGHLPIT(locationId);
+        const pit = await getGHLToken(locationId);
         const res = await fetch(`https://services.leadconnectorhq.com/contacts/${contactId}`, {
           headers: {
             "Authorization": `Bearer ${pit}`,

@@ -1,24 +1,9 @@
 import express from 'express';
 import crypto from 'crypto';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+import { supabase } from '../supabase-client.js';
+import { getGHLToken } from '../ghl-token.js';
 
 const GHL_LOCATION_ID = 'VpL3sVe4Vb1ANBx9DOL6';
-
-async function getGHLPIT() {
-  const { data } = await supabase.from('api_credential').select('credential_value').not('credential_value', 'is', null);
-  for (const cred of data || []) {
-    try {
-      const parsed = JSON.parse(cred.credential_value);
-      if (parsed.location_id === GHL_LOCATION_ID && parsed.token?.startsWith('pit-')) return parsed.token;
-    } catch {}
-  }
-  throw new Error('No GHL PIT token found');
-}
 
 function verifySlackSignature(rawBody, headers, signingSecret) {
   const timestamp = headers['x-slack-request-timestamp'];
@@ -42,7 +27,7 @@ async function handleSendDraft(taskId, responseUrl) {
   const { draft_message, contact_identifier, contact_name, source_channel } = t.input || {};
   if (!draft_message) throw new Error('No draft message on this task');
 
-  const pitToken = await getGHLPIT();
+  const pitToken = await getGHLToken();
   const msgType = source_channel === 'email' ? 'Email' : 'SMS';
 
   const sendRes = await fetch('https://services.leadconnectorhq.com/conversations/messages', {
