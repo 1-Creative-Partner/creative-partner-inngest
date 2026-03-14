@@ -392,7 +392,7 @@ export const taskRouterScheduled = inngest.createFunction(
     retries: 1,
     concurrency: { limit: 1 },
   },
-  { cron: "*/30 * * * *" },
+  { cron: "0 * * * *" },
   async ({ step }) => {
     const unrouted = await step.run("fetch-unrouted", async () => {
       const { data } = await supabase

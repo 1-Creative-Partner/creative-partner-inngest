@@ -135,7 +135,8 @@ const ghlWebhookRouter = inngest.createFunction(
         _routed_from: "cp/ghl.webhook.received",
         _routing_method: routing.method
       };
-      const { data: credData } = await supabase.from("api_credential").select("credential_value").eq("service", "inngest").eq("credential_key", "INNGEST_EVENT_KEY").eq("is_active", true).single();
+      const { data: credRows } = await supabase.from("api_credential").select("credential_value").eq("service", "inngest").eq("credential_key", "INNGEST_EVENT_KEY").eq("is_active", true).limit(1);
+      const credData = credRows?.[0];
       const eventKey = credData?.credential_value;
       if (!eventKey)
         throw new Error("No Inngest event key in api_credential");

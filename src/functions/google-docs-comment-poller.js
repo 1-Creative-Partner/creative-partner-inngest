@@ -10,7 +10,7 @@ const googleDocsCommentPoller = inngest.createFunction(
     id: "google-docs-comment-poller",
     name: "Google Docs Comment Poller"
   },
-  { cron: "*/30 * * * *" },
+  { cron: "0 */2 * * *" },
   // Every 30 minutes
   async ({ step }) => {
     const activeDocs = await step.run("get-active-docs", async () => {

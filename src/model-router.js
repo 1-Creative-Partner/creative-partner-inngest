@@ -256,7 +256,7 @@ export async function routeModel({ task, prompt, system, model, caller = 'unknow
       input_tokens: usage.input_tokens || null,
       output_tokens: usage.output_tokens || null,
       latency_ms: latencyMs,
-      prompt_preview: prompt.substring(0, 200),
+      prompt_preview: (prompt || JSON.stringify(rawMessages || []).substring(0, 200)).substring(0, 200),
       output_preview: text.substring(0, 200),
     });
 

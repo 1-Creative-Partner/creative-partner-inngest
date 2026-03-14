@@ -16,7 +16,8 @@ import { competitorSignalWeekly } from './functions/monitoring/competitor-signal
 import { kgEnrichmentSunday } from './functions/monitoring/kg-enrichment-sunday.js';
 
 // ── NEW FUNCTIONS ──────────────────────────────────────────────────────────
-import { ghlWebhookRouter } from './functions/ghl-webhook-router.js';
+// DISABLED 2026-03-14: duplicated ghl-webhook-buffer on cp/ghl.webhook.received
+// import { ghlWebhookRouter } from './functions/ghl-webhook-router.js';
 import { ghlTranscriptProcessor } from './functions/ghl-transcript-processor.js';
 import { ghlInboundMessageProcessor, ghlCommunicationExtraction } from './functions/ghl-message-processor.js';
 import { ghlFormProcessor } from './functions/ghl-form-processor.js';
@@ -56,6 +57,7 @@ import { taskRouterImmediate, taskRouterScheduled } from './functions/task-route
 
 // ── SYSTEM AUDIT ─────────────────────────────────────────────────────────────
 import { systemAuditRunner, systemAuditOnDemand } from './functions/system-audit-runner.js';
+import { weeklySystemAudit } from './functions/weekly-system-audit.js';
 
 // ── SLACK ACTIONS ────────────────────────────────────────────────────────────
 import { setupSlackRoutes } from './routes/slack-actions.js';
@@ -79,7 +81,7 @@ app.use(
       basecampTokenRefresh, metaTokenRefresh, ghlOauthRefresh,
       promptAutoscorer, helloWorldHealthCheck, sessionEnforcement,
       competitorSignalWeekly, kgEnrichmentSunday,
-      ghlWebhookRouter, ghlTranscriptProcessor, ghlInboundMessageProcessor,
+      ghlTranscriptProcessor, ghlInboundMessageProcessor,
       ghlCommunicationExtraction, ghlFormProcessor, ghlContactCreated,
       ghlOpportunityCreated, ghlOpportunityStageUpdated,
       ghlContactTagsUpdated, ghlAppointmentCreated,
@@ -106,6 +108,7 @@ app.use(
       // System Audit
       systemAuditRunner,
       systemAuditOnDemand,
+      weeklySystemAudit,
     ],
   })
 );

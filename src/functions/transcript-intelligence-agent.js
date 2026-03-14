@@ -7,8 +7,7 @@ const supabase = createClient(
 );
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const MAX_AGENT_ITERATIONS = 15;
-const SLACK_WEBHOOK_AGENT_ALERTS = process.env.SLACK_WEBHOOK_AGENT_ALERTS || process.env.SLACK_WEBHOOK_PROPOSALS || // fallback to known webhook
-"https://hooks.slack.com/services/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";
+const SLACK_WEBHOOK_AGENT_ALERTS = process.env.SLACK_WEBHOOK_URL;
 // Tools in Anthropic format — routeModel passes through for Anthropic,
 // converts for OpenRouter if needed
 const AGENT_TOOLS = [
@@ -374,6 +373,7 @@ ${summary.recommended_action || "Review and follow up"}` }
             }
           }))
         ];
+        if (!SLACK_WEBHOOK_AGENT_ALERTS) return { alerted: false, reason: "No Slack webhook configured" };
         const res = await fetch(SLACK_WEBHOOK_AGENT_ALERTS, {
           method: "POST",
           headers: { "Content-Type": "application/json" },

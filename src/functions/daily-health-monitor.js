@@ -344,10 +344,8 @@ var daily_health_monitor_default = inngest.createFunction(
   {
     id: "daily-health-monitor",
     name: "Daily Health Monitor - All Integrations",
-    // Run every day at 8 AM Eastern (12 PM UTC)
-    cron: "0 12 * * *"
   },
-  { event: "inngest/scheduled.timer" },
+  { cron: "0 12 * * *" },
   async ({ event, step }) => {
     const { data: credentials, error: credError } = await supabase.from("api_credential").select("*").eq("is_active", true);
     if (credError) {

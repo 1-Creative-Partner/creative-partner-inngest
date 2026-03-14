@@ -5,7 +5,7 @@ const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
-const SLACK_WEBHOOK_AGENT_HEALTH = process.env.SLACK_WEBHOOK_AGENT_HEALTH || process.env.SLACK_WEBHOOK_PROPOSALS || "https://hooks.slack.com/services/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";
+const SLACK_WEBHOOK_AGENT_HEALTH = process.env.SLACK_WEBHOOK_URL;
 async function collectAgentStats() {
   const now = /* @__PURE__ */ new Date();
   const h24 = new Date(now.getTime() - 24 * 60 * 60 * 1e3).toISOString();
@@ -203,6 +203,7 @@ ${inactive.map((a) => `\u2022 ${a.agentId}`).join("\n")}`
           }
         });
       }
+      if (!SLACK_WEBHOOK_AGENT_HEALTH) return;
       await fetch(SLACK_WEBHOOK_AGENT_HEALTH, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

@@ -5,7 +5,7 @@ const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
-const SLACK_WEBHOOK_BRIEFING = process.env.SLACK_WEBHOOK_BRIEFING || process.env.SLACK_WEBHOOK_AGENT_HEALTH || process.env.SLACK_WEBHOOK_PROPOSALS || "https://hooks.slack.com/services/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";
+const SLACK_WEBHOOK_BRIEFING = process.env.SLACK_WEBHOOK_URL;
 async function getNewLeads() {
   const overnight = new Date(Date.now() - 12 * 60 * 60 * 1e3).toISOString();
   const { data } = await supabase.from("customer").select("company_name, created_at, ghl_contact_id").gte("created_at", overnight).order("created_at", { ascending: false }).limit(10);
@@ -192,6 +192,7 @@ ${unresolvedAlerts.map(
           }
         ]
       });
+      if (!SLACK_WEBHOOK_BRIEFING) return;
       await fetch(SLACK_WEBHOOK_BRIEFING, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

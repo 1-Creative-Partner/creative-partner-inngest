@@ -47,12 +47,12 @@ const ghlInboundMessageProcessor = inngest.createFunction(
         },
         processed: false,
         received_at: dateAdded || new Date().toISOString()
-      }).select("id").single();
+      }).select("id").limit(1);
       if (error) {
         console.warn("communication_intake buffer warning:", error.message);
         return { skipped: true, error: error.message };
       }
-      return { buffered: true, id: data?.id };
+      return { buffered: true, id: data?.[0]?.id };
     });
 
     // Fire task-router event immediately after successful intake write
@@ -84,7 +84,7 @@ const ghlCommunicationExtraction = inngest.createFunction(
   // 3am EST = 8am UTC
   async ({ step }) => {
     const unprocessed = await step.run("get-unprocessed-messages", async () => {
-      const { data, error } = await supabase.from("communication_intake").select("id, customer_id, ghl_contact_id, communication_type, direction, content, metadata, received_at").eq("processed", false).neq("content", null).order("received_at", { ascending: true }).limit(100);
+      const { data, error } = await supabase.from("communication_intake").select("id, customer_id, contact_identifier, source_channel, direction, raw_content, received_at").eq("processed", false).neq("raw_content", null).order("received_at", { ascending: true }).limit(100);
       if (error)
         throw new Error(`Failed to fetch unprocessed messages: ${error.message}`);
       return data || [];
@@ -95,7 +95,7 @@ const ghlCommunicationExtraction = inngest.createFunction(
     const grouped = await step.run("group-by-customer", async () => {
       const groups = {};
       for (const msg of unprocessed) {
-        const key = msg.customer_id || msg.ghl_contact_id || "unknown";
+        const key = msg.customer_id || msg.contact_identifier || "unknown";
         if (!groups[key])
           groups[key] = [];
         groups[key].push(msg);
@@ -105,7 +105,7 @@ const ghlCommunicationExtraction = inngest.createFunction(
     const extractionResults = await step.run("extract-intelligence", async () => {
       const results = [];
       for (const [customerId, messages] of Object.entries(grouped)) {
-        const messageContext = messages.map((m) => `[${m.direction?.toUpperCase() || "MSG"} - ${m.communication_type}]: ${m.content?.substring(0, 500)}`).join("\n\n");
+        const messageContext = messages.map((m) => `[${m.direction?.toUpperCase() || "MSG"} - ${m.source_channel}]: ${m.raw_content?.substring(0, 500)}`).join("\n\n");
         try {
           const routeResult = await routeModel({
             task: "simple extraction",
